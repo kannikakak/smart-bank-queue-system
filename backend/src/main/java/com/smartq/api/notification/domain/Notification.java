@@ -66,4 +66,40 @@ public class Notification {
         this.sentAt = sentAt;
         this.createdAt = createdAt;
     }
+
+    public Long getId() {
+        return id;
+    }
+
+    public Appointment getAppointment() {
+        return appointment;
+    }
+
+    public String getChannel() {
+        return channel;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public String getRecipient() {
+        return recipient;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public LocalDateTime getScheduledAt() {
+        return scheduledAt;
+    }
+
+    public LocalDateTime getSentAt() {
+        return sentAt;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
 }
