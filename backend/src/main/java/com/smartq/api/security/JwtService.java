@@ -1,6 +1,6 @@
 package com.smartq.api.security;
 
-import com.smartq.api.auth.domain.DemoUser;
+import com.smartq.api.auth.domain.AppUser;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -28,12 +28,12 @@ public class JwtService {
         this.expirationMinutes = expirationMinutes;
     }
 
-    public String generateToken(DemoUser user) {
+    public String generateToken(AppUser user) {
         Instant now = Instant.now();
         return Jwts.builder()
-            .subject(user.email())
-            .claim("role", user.role().name())
-            .claim("displayName", user.displayName())
+            .subject(user.getEmail())
+            .claim("role", user.getRole().name())
+            .claim("displayName", user.getFullName())
             .issuedAt(Date.from(now))
             .expiration(Date.from(now.plus(expirationMinutes, ChronoUnit.MINUTES)))
             .signWith(signingKey)
@@ -72,4 +72,3 @@ public class JwtService {
         return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 }
-
