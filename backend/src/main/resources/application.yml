@@ -1,0 +1,22 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: smartq-backend
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+smartq:
+  jwt:
+    secret: ${SMARTQ_JWT_SECRET:change-this-secret-key-change-this-secret-key}
+    expiration-minutes: ${SMARTQ_JWT_EXPIRATION_MINUTES:180}
+  cors:
+    allowed-origin: ${SMARTQ_CORS_ALLOWED_ORIGIN:http://localhost:3000}
