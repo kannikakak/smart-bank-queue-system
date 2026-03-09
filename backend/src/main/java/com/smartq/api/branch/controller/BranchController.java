@@ -1,6 +1,9 @@
 package com.smartq.api.branch.controller;
 
 import com.smartq.api.branch.dto.BranchSummary;
+import com.smartq.api.branch.repository.BranchRepository;
+import com.smartq.api.staff.repository.StaffBranchAssignmentRepository;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -10,13 +13,29 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/branches")
 public class BranchController {
 
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+
+    private final BranchRepository branchRepository;
+    private final StaffBranchAssignmentRepository staffBranchAssignmentRepository;
+
+    public BranchController(
+        BranchRepository branchRepository,
+        StaffBranchAssignmentRepository staffBranchAssignmentRepository
+    ) {
+        this.branchRepository = branchRepository;
+        this.staffBranchAssignmentRepository = staffBranchAssignmentRepository;
+    }
+
     @GetMapping
     public List<BranchSummary> listBranches() {
-        return List.of(
-            new BranchSummary(1L, "Downtown Branch", "Phnom Penh", "08:00 - 17:00", 6),
-            new BranchSummary(2L, "Central Branch", "Phnom Penh", "08:30 - 17:30", 5),
-            new BranchSummary(3L, "Riverside Branch", "Siem Reap", "08:00 - 16:30", 4)
-        );
+        return branchRepository.findByActiveTrueOrderByNameAsc().stream()
+            .map(branch -> new BranchSummary(
+                branch.getId(),
+                branch.getName(),
+                branch.getAddress(),
+                branch.getOpenTime().format(TIME_FORMATTER) + " - " + branch.getCloseTime().format(TIME_FORMATTER),
+                Math.toIntExact(staffBranchAssignmentRepository.countByBranch_IdAndActiveTrue(branch.getId()))
+            ))
+            .toList();
     }
 }
-
