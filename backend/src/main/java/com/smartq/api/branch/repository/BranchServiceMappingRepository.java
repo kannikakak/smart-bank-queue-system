@@ -4,4 +4,6 @@ import com.smartq.api.branch.domain.BranchServiceMapping;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface BranchServiceMappingRepository extends JpaRepository<BranchServiceMapping, Long> {
+
+    boolean existsByBranch_IdAndService_IdAndActiveTrue(Long branchId, Long serviceId);
 }
