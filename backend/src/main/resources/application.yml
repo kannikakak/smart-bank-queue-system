@@ -2,10 +2,12 @@ server:
   port: 8080
 
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: smartq-backend
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:6543/smartq}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/smartq}
     username: ${SPRING_DATASOURCE_USERNAME:smartq}
     password: ${SPRING_DATASOURCE_PASSWORD:smartq}
   jpa:

@@ -23,6 +23,8 @@ SmartQ is a full-stack starter for a smart banking appointment and branch queue 
 docker compose -f infra/docker/docker-compose.yml up -d
 ```
 
+The project PostgreSQL container is exposed on `localhost:6543` to avoid clashes with local Postgres services already using the default port.
+
 2. Frontend:
 
 ```powershell
@@ -40,11 +42,11 @@ cd backend
 mvn spring-boot:run
 ```
 
-The current demo backend uses in-memory data for auth and sample APIs, so PostgreSQL is not required just to start the app.
+The backend now uses PostgreSQL-backed auth and domain data. On first start it runs Flyway migrations and seeds sample users, branches, services, appointments, notifications, and queue events.
 
 ## Demo API Credentials
 
-These are seeded in the backend demo identity service:
+These are seeded into the database on first startup:
 
 - `customer@smartq.local` / `Customer@123`
 - `staff@smartq.local` / `Staff@123`
