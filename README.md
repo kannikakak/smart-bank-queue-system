@@ -1,17 +1,15 @@
 # SmartQ
 
-SmartQ is a full-stack starter for a smart banking appointment and branch queue management system.
+SmartQ is a backend API for a smart banking appointment and branch queue management system.
 
 ## Stack
 
-- Frontend: Next.js App Router with TypeScript
 - Backend: Spring Boot 3 with Java 21
 - Database: PostgreSQL 16
 - Auth baseline: JWT-ready security scaffold
 
 ## Project Structure
 
-- `frontend/` Next.js application for customers, staff, and managers
 - `backend/` Spring Boot REST API
 - `infra/docker/` local PostgreSQL setup
 
@@ -25,15 +23,7 @@ docker compose -f infra/docker/docker-compose.yml up -d
 
 The project PostgreSQL container is exposed on `localhost:6543` to avoid clashes with local Postgres services already using the default port.
 
-2. Frontend:
-
-```powershell
-cd frontend
-npm.cmd install
-npm.cmd run dev
-```
-
-3. Backend:
+2. Backend:
 
 Install Maven first, then run:
 
@@ -43,6 +33,8 @@ mvn spring-boot:run
 ```
 
 The backend now uses PostgreSQL-backed auth and domain data. On first start it runs Flyway migrations and seeds sample users, branches, services, appointments, notifications, and queue events.
+
+Use Postman against the backend once it is running locally.
 
 ## Demo API Credentials
 
@@ -56,8 +48,6 @@ These are seeded into the database on first startup:
 
 The scaffold includes:
 
-- Landing page and role dashboards
-- Login page wired to the backend auth endpoint
 - Backend controller structure for auth, branches, services, appointments, queue, and analytics
 - JWT token service and security filter baseline
 - Docker Compose setup for PostgreSQL
