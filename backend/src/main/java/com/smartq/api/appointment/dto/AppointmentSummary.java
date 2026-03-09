@@ -1,11 +1,12 @@
 package com.smartq.api.appointment.dto;
 
+import java.time.LocalDateTime;
+
 public record AppointmentSummary(
     Long id,
     String branch,
     String service,
-    String scheduledAt,
+    LocalDateTime scheduledAt,
     String status
 ) {
 }
-
