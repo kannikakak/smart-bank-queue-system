@@ -5,16 +5,19 @@ spring:
   application:
     name: smartq-backend
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/smartq}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:6543/smartq}
     username: ${SPRING_DATASOURCE_USERNAME:smartq}
     password: ${SPRING_DATASOURCE_PASSWORD:smartq}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
+    open-in-view: false
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    enabled: true
   jackson:
     serialization:
       write-dates-as-timestamps: false
