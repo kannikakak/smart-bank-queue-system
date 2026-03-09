@@ -91,6 +91,10 @@ public class Appointment {
         return id;
     }
 
+    public AppUser getCustomer() {
+        return customer;
+    }
+
     public Branch getBranch() {
         return branch;
     }
@@ -103,7 +107,28 @@ public class Appointment {
         return startTime;
     }
 
+    public LocalDateTime getEndTime() {
+        return endTime;
+    }
+
     public String getStatus() {
         return status;
+    }
+
+    public AppUser getStaff() {
+        return staff;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void reschedule(LocalDateTime startTime, LocalDateTime endTime) {
+        this.startTime = startTime;
+        this.endTime = endTime;
+    }
+
+    public void updateStatus(String status) {
+        this.status = status;
     }
 }
