@@ -63,4 +63,32 @@ public class QueueEvent {
         this.eventTime = eventTime;
         this.note = note;
     }
+
+    public Long getId() {
+        return id;
+    }
+
+    public String getAction() {
+        return action;
+    }
+
+    public String getFromStatus() {
+        return fromStatus;
+    }
+
+    public String getToStatus() {
+        return toStatus;
+    }
+
+    public AppUser getPerformedBy() {
+        return performedBy;
+    }
+
+    public LocalDateTime getEventTime() {
+        return eventTime;
+    }
+
+    public String getNote() {
+        return note;
+    }
 }
