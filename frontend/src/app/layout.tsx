@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+const appFont = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "SmartQ",
-  description: "Simple SmartQ homepage",
+  description: "SmartQ banking queue experience",
 };
 
 export default function RootLayout({
@@ -13,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={appFont.variable}>{children}</body>
     </html>
   );
 }
