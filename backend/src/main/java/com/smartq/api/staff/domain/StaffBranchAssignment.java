@@ -38,4 +38,16 @@ public class StaffBranchAssignment {
         this.branch = branch;
         this.active = active;
     }
+
+    public AppUser getStaff() {
+        return staff;
+    }
+
+    public Branch getBranch() {
+        return branch;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
 }
