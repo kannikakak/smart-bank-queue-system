@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: smartq-backend
+    runtime: java
+    rootDir: backend
+    buildCommand: mvn -q -DskipTests package
+    startCommand: java -jar target/smartq-backend-0.1.0.jar
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: smartq-postgres
+          property: connectionString
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: smartq-postgres
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: smartq-postgres
+          property: password
+      - key: SMARTQ_JWT_SECRET
+        generateValue: true
+      - key: SMARTQ_JWT_EXPIRATION_MINUTES
+        value: "180"
+      - key: SMARTQ_CORS_ALLOWED_ORIGIN
+        sync: false
+
+databases:
+  - name: smartq-postgres
+    databaseName: smartq
+    user: smartq
