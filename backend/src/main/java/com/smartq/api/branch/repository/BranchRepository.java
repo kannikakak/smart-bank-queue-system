@@ -7,7 +7,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface BranchRepository extends JpaRepository<Branch, Long> {
 
+    List<Branch> findAllByOrderByNameAsc();
+
     List<Branch> findByActiveTrueOrderByNameAsc();
 
     Optional<Branch> findByIdAndActiveTrue(Long id);
+
+    long countByActiveTrue();
 }
