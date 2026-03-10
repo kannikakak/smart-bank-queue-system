@@ -123,6 +123,18 @@ public class Appointment {
         return createdAt;
     }
 
+    public LocalDateTime getCheckedInAt() {
+        return checkedInAt;
+    }
+
+    public LocalDateTime getServiceStartAt() {
+        return serviceStartAt;
+    }
+
+    public LocalDateTime getServiceEndAt() {
+        return serviceEndAt;
+    }
+
     public void reschedule(LocalDateTime startTime, LocalDateTime endTime) {
         this.startTime = startTime;
         this.endTime = endTime;
@@ -130,5 +142,21 @@ public class Appointment {
 
     public void updateStatus(String status) {
         this.status = status;
+    }
+
+    public void checkIn(LocalDateTime checkedInAt) {
+        this.checkedInAt = checkedInAt;
+        this.status = "READY";
+    }
+
+    public void startService(AppUser staff, LocalDateTime serviceStartAt) {
+        this.staff = staff;
+        this.serviceStartAt = serviceStartAt;
+        this.status = "IN_SERVICE";
+    }
+
+    public void completeService(LocalDateTime serviceEndAt) {
+        this.serviceEndAt = serviceEndAt;
+        this.status = "COMPLETED";
     }
 }
