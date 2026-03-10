@@ -8,6 +8,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
 
+    List<Appointment> findAllByOrderByStartTimeAsc();
+
+    List<Appointment> findByBranch_IdInOrderByStartTimeAsc(List<Long> branchIds);
+
     List<Appointment> findByCustomer_EmailIgnoreCaseOrderByStartTimeAsc(String email);
 
     boolean existsByBranch_IdAndStartTimeLessThanAndEndTimeGreaterThan(
@@ -24,4 +28,6 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     );
 
     Optional<Appointment> findByIdAndCustomer_EmailIgnoreCase(Long id, String email);
+
+    Optional<Appointment> findByIdAndBranch_IdIn(Long id, List<Long> branchIds);
 }
