@@ -109,4 +109,28 @@ public class Branch {
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
+
+    public void update(
+        String name,
+        String address,
+        String phone,
+        LocalTime openTime,
+        LocalTime closeTime,
+        BigDecimal latitude,
+        BigDecimal longitude,
+        boolean active
+    ) {
+        this.name = name;
+        this.address = address;
+        this.phone = phone;
+        this.openTime = openTime;
+        this.closeTime = closeTime;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.active = active;
+    }
+
+    public void deactivate() {
+        this.active = false;
+    }
 }
