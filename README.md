@@ -36,16 +36,13 @@ The backend now uses PostgreSQL-backed auth and domain data. On first start it r
 
 Use Postman against the backend once it is running locally.
 
-## Render Deployment
+## Railway Deployment
 
-This repo includes a root-level `render.yaml` that provisions:
+This backend is now prepared for Railway deployment using the Dockerfile in `backend/` plus `backend/railway.json`.
 
-- a Render web service for `backend/`
-- a Render PostgreSQL database
+Railway should deploy the `backend/` directory as a single service. The app reads `PORT` from the environment, so it will bind correctly on Railway.
 
-Render will build the backend with Maven and start the packaged Spring Boot jar. The app now reads `PORT` from the environment so it can bind correctly on Render.
-
-Required environment values on Render:
+Required environment values on Railway:
 
 - `SPRING_DATASOURCE_URL`
 - `SPRING_DATASOURCE_USERNAME`
@@ -54,21 +51,24 @@ Required environment values on Render:
 - `SMARTQ_JWT_EXPIRATION_MINUTES`
 - `SMARTQ_CORS_ALLOWED_ORIGIN`
 
-If you deploy with the Blueprint:
+Recommended Railway steps:
 
 1. Push this repository to GitHub.
-2. In Render, choose `New +` -> `Blueprint`.
-3. Select the repository and confirm the generated `smartq-backend` service plus `smartq-postgres` database.
-4. When prompted, set `SMARTQ_CORS_ALLOWED_ORIGIN` to your frontend URL.
-5. Deploy and wait for the service health check at `/actuator/health` to pass.
+2. In Railway, create a new project from your GitHub repository.
+3. Set the service root directory to `backend`.
+4. Railway should detect `backend/Dockerfile` and `backend/railway.json`.
+5. Add a PostgreSQL database service in Railway, or connect an external PostgreSQL instance.
+6. Set the environment variables above on the backend service.
+7. Set `SMARTQ_CORS_ALLOWED_ORIGIN` to your frontend URL.
+8. Deploy and wait for the health check at `/actuator/health` to pass.
 
-If you deploy manually without the Blueprint:
+If you use a Railway PostgreSQL service, copy its connection values into:
 
-1. Create a PostgreSQL database on Render.
-2. Create a web service from this repository with root directory `backend`.
-3. Use build command `mvn -q -DskipTests package`.
-4. Use start command `java -jar target/smartq-backend-0.1.0.jar`.
-5. Copy the Render database connection values into the Spring datasource environment variables above.
+- `SPRING_DATASOURCE_URL`
+- `SPRING_DATASOURCE_USERNAME`
+- `SPRING_DATASOURCE_PASSWORD`
+
+If you prefer Render later, the repo still contains `render.yaml`, but Railway is the primary deployment target in this setup.
 
 ## Demo API Credentials
 
@@ -88,4 +88,4 @@ The scaffold includes:
 
 ## CI
 
-GitHub Actions is not required for Render deployment, but it helps your rubric. This repo now includes `.github/workflows/backend-ci.yml` to run backend verification on pushes and pull requests that touch `backend/`.
+GitHub Actions is not required for Railway deployment, but it helps your rubric. This repo includes `.github/workflows/backend-ci.yml` to run backend verification on pushes and pull requests that touch `backend/`.
