@@ -49,4 +49,22 @@ public class ServiceOffering {
     public int getDurationMinutes() {
         return durationMinutes;
     }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void update(String name, int durationMinutes, boolean active) {
+        this.name = name;
+        this.durationMinutes = durationMinutes;
+        this.active = active;
+    }
+
+    public void deactivate() {
+        this.active = false;
+    }
 }
