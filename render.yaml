@@ -1,10 +1,8 @@
 services:
   - type: web
     name: smartq-backend
-    runtime: java
+    runtime: docker
     rootDir: backend
-    buildCommand: mvn -q -DskipTests package
-    startCommand: java -jar target/smartq-backend-0.1.0.jar
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
