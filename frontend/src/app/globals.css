@@ -437,6 +437,17 @@ input::placeholder {
   accent-color: var(--accent-strong);
 }
 
+.auth-error-message {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #efb1b1;
+  border-radius: 10px;
+  background: #fff1f1;
+  color: #8a1f1f;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
 .sign-in-button {
   display: inline-flex;
   align-items: center;

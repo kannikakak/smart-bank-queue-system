@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { MetricCard } from "@/shared/components/MetricCard";
 import { RoleCard } from "@/shared/components/RoleCard";
+import { login } from "@/shared/lib/api";
 import { TopNav } from "@/shared/components/TopNav";
 
 function MailIcon() {
@@ -96,11 +97,42 @@ const roleContent = {
   },
 } as const;
 
+const demoCredentials = {
+  customer: {
+    email: "customer@smartq.local",
+    password: "Customer@123",
+  },
+  admin: {
+    email: "admin@smartq.local",
+    password: "Admin@123",
+  },
+  staff: {
+    email: "staff@smartq.local",
+    password: "Staff@123",
+  },
+} as const;
+
+function mapApiRoleToPortalRole(role: "CUSTOMER" | "STAFF" | "ADMIN") {
+  if (role === "ADMIN") {
+    return "admin";
+  }
+
+  if (role === "STAFF") {
+    return "staff";
+  }
+
+  return "customer";
+}
+
 export default function HomePage() {
   const router = useRouter();
   const [selectedRole, setSelectedRole] =
     useState<keyof typeof roleContent>("customer");
-  const [isPending, startTransition] = useTransition();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [email, setEmail] = useState<string>(demoCredentials.customer.email);
+  const [password, setPassword] = useState<string>(demoCredentials.customer.password);
+  const [rememberDevice, setRememberDevice] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const content = roleContent[selectedRole];
   const supportHref =
     selectedRole === "admin"
@@ -109,11 +141,39 @@ export default function HomePage() {
         ? "/portal?role=staff#support"
         : "/portal?role=customer#support";
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    setEmail(demoCredentials[selectedRole].email);
+    setPassword(demoCredentials[selectedRole].password);
+    setErrorMessage(null);
+  }, [selectedRole]);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    startTransition(() => {
-      router.push(`/portal?role=${selectedRole}`);
-    });
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      const auth = await login({
+        email: email.trim(),
+        password,
+      });
+      const resolvedRole = mapApiRoleToPortalRole(auth.role);
+      const storage = rememberDevice ? window.localStorage : window.sessionStorage;
+
+      storage.setItem("smartq.accessToken", auth.accessToken);
+      storage.setItem("smartq.role", resolvedRole);
+      storage.setItem("smartq.displayName", auth.displayName);
+
+      router.push(`/portal?role=${resolvedRole}`);
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim().length > 0
+          ? error.message
+          : "Unable to sign in. Check the backend server and your credentials.";
+      setErrorMessage(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -192,8 +252,11 @@ export default function HomePage() {
                   type="text"
                   placeholder={content.fieldPlaceholder}
                   autoComplete="username"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
                   spellCheck={false}
                   suppressHydrationWarning
+                  required
                 />
               </div>
 
@@ -216,7 +279,10 @@ export default function HomePage() {
                   type="password"
                   placeholder="........"
                   autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
                   suppressHydrationWarning
+                  required
                 />
                 <button
                   className="icon-button"
@@ -229,17 +295,29 @@ export default function HomePage() {
               </div>
 
               <label className="checkbox-row">
-                <input type="checkbox" name="rememberDevice" suppressHydrationWarning />
+                <input
+                  type="checkbox"
+                  name="rememberDevice"
+                  checked={rememberDevice}
+                  onChange={(event) => setRememberDevice(event.target.checked)}
+                  suppressHydrationWarning
+                />
                 <span>{content.rememberText}</span>
               </label>
+
+              {errorMessage ? (
+                <p className="auth-error-message" aria-live="polite">
+                  {errorMessage}
+                </p>
+              ) : null}
 
               <button
                 className="sign-in-button"
                 type="submit"
-                disabled={isPending}
+                disabled={isSubmitting}
                 suppressHydrationWarning
               >
-                <span>{isPending ? "Signing In..." : content.buttonText}</span>
+                <span>{isSubmitting ? "Signing In..." : content.buttonText}</span>
                 <ArrowIcon />
               </button>
             </form>
@@ -248,6 +326,11 @@ export default function HomePage() {
 
             <p className="signup-note">
               {content.supportNote} <Link href={supportHref}>{content.supportAction}</Link>
+            </p>
+
+            <p className="signup-note">
+              Local demo: use <strong>{demoCredentials[selectedRole].email}</strong> /{" "}
+              <strong>{demoCredentials[selectedRole].password}</strong>
             </p>
           </div>
         </div>

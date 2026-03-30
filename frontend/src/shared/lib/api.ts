@@ -13,14 +13,20 @@ export type AuthResponse = {
 };
 
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
-  const response = await fetch(`${apiBaseUrl}/api/v1/auth/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${apiBaseUrl}/api/v1/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error("Backend is not reachable at http://localhost:8080. Start the Spring Boot server first.");
+  }
 
   if (!response.ok) {
     const message = await response.text();
