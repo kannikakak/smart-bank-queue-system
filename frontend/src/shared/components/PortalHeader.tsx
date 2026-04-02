@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { PortalBankIcon } from "@/shared/components/portal/PortalIcons";
 import { usePortalNavigation } from "@/shared/hooks/usePortalNavigation";
+import { clearStoredAuth, readStoredDisplayName } from "@/shared/lib/api";
 import { buildBranchesUrl, buildPortalUrl } from "@/shared/portal/booking-data";
 import { getPortalProfileLabel, type PortalRole } from "@/shared/portal/portal-role";
 
@@ -12,9 +15,22 @@ type PortalHeaderProps = {
 };
 
 export function PortalHeader({ role, activeItem }: PortalHeaderProps) {
+  const router = useRouter();
   const { bookingParams, currentItem, goToSection } = usePortalNavigation({ role, activeItem });
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [displayName, setDisplayName] = useState(() => getPortalProfileLabel(role));
   const branchesHref =
     role === "customer" ? buildBranchesUrl(role, bookingParams, "branch-selection") : `/portal/branches?role=${role}`;
+
+  useEffect(() => {
+    setDisplayName(readStoredDisplayName() ?? getPortalProfileLabel(role));
+  }, [role]);
+
+  function handleLogout() {
+    setIsLoggingOut(true);
+    clearStoredAuth();
+    router.replace("/");
+  }
 
   return (
     <header className="portal-nav">
@@ -22,7 +38,10 @@ export function PortalHeader({ role, activeItem }: PortalHeaderProps) {
         <span className="portal-brand-badge" aria-hidden="true">
           <PortalBankIcon />
         </span>
-        <span className="portal-brand-name">SmartQ Bank</span>
+        <span className="portal-brand-copy">
+          <span className="portal-brand-name">SmartQ Bank</span>
+          <span className="portal-brand-subtitle">Unified branch appointments</span>
+        </span>
       </Link>
 
       <nav className="portal-links" aria-label="Primary">
@@ -102,11 +121,17 @@ export function PortalHeader({ role, activeItem }: PortalHeaderProps) {
       </nav>
 
       <div className="portal-actions">
-        <Link href="/" className="portal-login-link">
-          Switch User
-        </Link>
+        <span className="portal-role-pill">{role}</span>
+        <button type="button" className="portal-login-link" onClick={handleLogout} disabled={isLoggingOut}>
+          {isLoggingOut ? "Logging out..." : "Log out"}
+        </button>
         <span className="portal-profile" aria-label="Profile">
-          {getPortalProfileLabel(role)}
+          {displayName
+            .split(" ")
+            .map((part) => part[0] ?? "")
+            .slice(0, 2)
+            .join("")
+            .toUpperCase()}
         </span>
       </div>
     </header>

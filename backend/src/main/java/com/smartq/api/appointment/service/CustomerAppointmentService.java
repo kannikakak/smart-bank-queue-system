@@ -1,6 +1,7 @@
 package com.smartq.api.appointment.service;
 
 import com.smartq.api.appointment.domain.Appointment;
+import com.smartq.api.appointment.dto.AvailableSlotSummary;
 import com.smartq.api.appointment.dto.AppointmentDetail;
 import com.smartq.api.appointment.dto.AppointmentSummary;
 import com.smartq.api.appointment.dto.AppointmentTimelineEvent;
@@ -8,6 +9,7 @@ import com.smartq.api.appointment.dto.CreateAppointmentRequest;
 import com.smartq.api.appointment.dto.RescheduleAppointmentRequest;
 import com.smartq.api.appointment.repository.AppointmentRepository;
 import com.smartq.api.auth.domain.AppUser;
+import com.smartq.api.auth.domain.UserRole;
 import com.smartq.api.auth.repository.AppUserRepository;
 import com.smartq.api.branch.domain.Branch;
 import com.smartq.api.branch.repository.BranchRepository;
@@ -18,6 +20,8 @@ import com.smartq.api.notification.domain.Notification;
 import com.smartq.api.notification.repository.NotificationRepository;
 import com.smartq.api.queue.domain.QueueEvent;
 import com.smartq.api.queue.repository.QueueEventRepository;
+import com.smartq.api.staff.repository.StaffBranchAssignmentRepository;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
@@ -36,6 +40,7 @@ public class CustomerAppointmentService {
     private final ServiceOfferingRepository serviceOfferingRepository;
     private final QueueEventRepository queueEventRepository;
     private final NotificationRepository notificationRepository;
+    private final StaffBranchAssignmentRepository staffBranchAssignmentRepository;
 
     public CustomerAppointmentService(
         AppointmentRepository appointmentRepository,
@@ -44,7 +49,8 @@ public class CustomerAppointmentService {
         BranchServiceMappingRepository branchServiceMappingRepository,
         ServiceOfferingRepository serviceOfferingRepository,
         QueueEventRepository queueEventRepository,
-        NotificationRepository notificationRepository
+        NotificationRepository notificationRepository,
+        StaffBranchAssignmentRepository staffBranchAssignmentRepository
     ) {
         this.appointmentRepository = appointmentRepository;
         this.appUserRepository = appUserRepository;
@@ -53,6 +59,7 @@ public class CustomerAppointmentService {
         this.serviceOfferingRepository = serviceOfferingRepository;
         this.queueEventRepository = queueEventRepository;
         this.notificationRepository = notificationRepository;
+        this.staffBranchAssignmentRepository = staffBranchAssignmentRepository;
     }
 
     @Transactional
@@ -108,6 +115,7 @@ public class CustomerAppointmentService {
             now,
             now
         ));
+        saveAdminBookingAlerts(appointment, now);
 
         return new AppointmentSummary(
             appointment.getId(),
@@ -133,6 +141,59 @@ public class CustomerAppointmentService {
             appointment.getStaff() != null ? appointment.getStaff().getFullName() : null,
             appointment.getCreatedAt()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<AvailableSlotSummary> getAvailableSlots(Long branchId, Long serviceId, LocalDate date) {
+        Branch branch = findActiveBranch(branchId);
+        ServiceOffering service = findActiveService(serviceId);
+
+        if (!branchServiceMappingRepository.existsByBranch_IdAndService_IdAndActiveTrue(branch.getId(), service.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service is not available at this branch");
+        }
+
+        LocalDateTime dayStart = date.atStartOfDay();
+        LocalDateTime dayEnd = dayStart.plusDays(1);
+        List<Appointment> dayAppointments =
+            appointmentRepository.findByBranch_IdAndStartTimeGreaterThanEqualAndStartTimeLessThanOrderByStartTimeAsc(
+                branch.getId(),
+                dayStart,
+                dayEnd
+            );
+
+        int serviceDuration = service.getDurationMinutes();
+        int slotInterval = Math.min(serviceDuration, 15);
+        int branchCapacity = Math.max(1, Math.toIntExact(
+            staffBranchAssignmentRepository.countByBranch_IdAndActiveTrue(branch.getId())
+        ));
+
+        LocalDateTime candidateStart = LocalDateTime.of(date, branch.getOpenTime());
+        LocalDateTime branchClose = LocalDateTime.of(date, branch.getCloseTime());
+        LocalDateTime now = LocalDateTime.now().withSecond(0).withNano(0);
+
+        List<AvailableSlotSummary> slots = new java.util.ArrayList<>();
+        while (!candidateStart.plusMinutes(serviceDuration).isAfter(branchClose)) {
+            LocalDateTime currentSlotStart = candidateStart;
+            LocalDateTime candidateEnd = currentSlotStart.plusMinutes(serviceDuration);
+            long overlappingAppointments = dayAppointments.stream()
+                .filter(appointment -> !("CANCELLED".equalsIgnoreCase(appointment.getStatus())
+                    || "COMPLETED".equalsIgnoreCase(appointment.getStatus())))
+                .filter(appointment -> appointment.getStartTime().isBefore(candidateEnd)
+                    && appointment.getEndTime().isAfter(currentSlotStart))
+                .count();
+
+            if (!currentSlotStart.isBefore(now) && overlappingAppointments < branchCapacity) {
+                slots.add(new AvailableSlotSummary(
+                    currentSlotStart,
+                    candidateEnd,
+                    branchCapacity - (int) overlappingAppointments
+                ));
+            }
+
+            candidateStart = candidateStart.plusMinutes(slotInterval);
+        }
+
+        return slots;
     }
 
     @Transactional(readOnly = true)
@@ -287,5 +348,24 @@ public class CustomerAppointmentService {
             appointment.getStartTime(),
             appointment.getStatus()
         );
+    }
+
+    private void saveAdminBookingAlerts(Appointment appointment, LocalDateTime now) {
+        List<Notification> adminNotifications = appUserRepository.findAllByRoleAndActiveTrue(UserRole.ADMIN).stream()
+            .map(admin -> new Notification(
+                appointment,
+                "SYSTEM",
+                "ADMIN_BOOKING_ALERT",
+                admin.getEmail(),
+                "UNREAD",
+                now,
+                now,
+                now
+            ))
+            .toList();
+
+        if (!adminNotifications.isEmpty()) {
+            notificationRepository.saveAll(adminNotifications);
+        }
     }
 }

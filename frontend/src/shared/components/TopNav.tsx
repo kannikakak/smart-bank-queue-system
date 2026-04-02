@@ -40,10 +40,14 @@ export function TopNav() {
         <span className="brand-badge" aria-hidden="true">
           <BankIcon />
         </span>
-        <span className="brand-name">SmartQ</span>
+        <span className="brand-copy">
+          <span className="brand-name">SmartQ</span>
+          <span className="brand-subtitle">Banking Queue Platform</span>
+        </span>
       </Link>
 
       <div className="top-nav-actions">
+        <span className="support-pill">Live branch scheduling</span>
         <Link href="/portal?role=customer#support" className="support-link" aria-label="Get support">
           <span className="support-icon" aria-hidden="true">
             <HelpIcon />

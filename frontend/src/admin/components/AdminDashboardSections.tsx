@@ -1,16 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminAppointmentsWorkspace } from "@/admin/components/AdminAppointmentsWorkspace";
 import {
-  adminStats,
-  dashboardDemandBars,
-  liveQueueEntries,
-  servicePerformanceEntries,
-  staffEfficiencyEntries,
-  todayAppointments,
+  type AdminStat,
+  type AppointmentEntry,
+  type DemandBar,
+  type QueueEntry,
+  type ServicePerformanceEntry,
+  type StaffEfficiencyEntry,
 } from "@/admin/lib/workspace-data";
+import {
+  getAdminAppointments,
+  getAdminOverview,
+  type AdminAppointmentSummary,
+  type AdminOverview,
+} from "@/shared/lib/api";
 
 type DashboardSectionsProps = {
   focus?: "dashboard" | "appointments" | "queue" | "transactions" | "settings" | "help";
@@ -41,6 +47,12 @@ const demandViewOptions: { value: DemandView; label: string }[] = [
 ];
 
 type SecondaryWorkspaceFocus = "queue" | "transactions" | "settings" | "help";
+type SettingsChecklistItem = {
+  title: string;
+  detail: string;
+  note: string;
+  status: "waiting" | "in-progress" | "completed";
+};
 
 const secondaryWorkspaceContent: Record<
   SecondaryWorkspaceFocus,
@@ -61,65 +73,62 @@ const secondaryWorkspaceContent: Record<
   }
 > = {
   queue: {
-    pageTitle: "Queue Management",
+    pageTitle: "Consultation Board",
     pageLinkHref: "/portal/bookings?role=admin",
-    pageLinkLabel: "View queue board",
-    pageDescription: "Monitor live service activity, staff handling, and next customer actions.",
-    sideTitle: "Upcoming Service Visits",
+    pageLinkLabel: "Open board",
+    pageDescription: "Live queue and handoff status.",
+    sideTitle: "Upcoming Consultations",
     servingTitle: "Q-042: Michael Chen",
-    servingLines: ["Service: Business Loan Consultation", "Time Started: 10:42 AM"],
-    queueTitle: "Live Queue",
-    highlightKicker: "Now Serving",
-    metaTags: ["Desk 04", "Live queue", "Priority consult"],
-    actionNote: "Finish the current consultation before calling the next customer.",
-    primaryAction: "Complete Service",
-    secondaryAction: "Mark as No-Show",
+    servingLines: ["Service: Business Loan Consultation", "Consultation Started: 10:42 AM"],
+    queueTitle: "Live Consultations",
+    highlightKicker: "In Consultation",
+    metaTags: ["Advisor room", "Arrival ready", "Priority consult"],
+    actionNote: "Close the active consultation before calling the next customer.",
+    primaryAction: "Complete Consultation",
+    secondaryAction: "Flag Follow-Up",
   },
   transactions: {
     pageTitle: "Transactions Oversight",
     pageLinkHref: "/portal?role=admin&section=transactions",
-    pageLinkLabel: "View review queue",
-    pageDescription:
-      "Monitor approval flow, pending reviews, and transaction throughput from one consistent workspace.",
+    pageLinkLabel: "Open reviews",
+    pageDescription: "Pending approvals and exceptions.",
     sideTitle: "Recent Approvals",
-    servingTitle: "Transaction review queue",
+    servingTitle: "Transaction review board",
     servingLines: ["Service: International transfer approvals", "Window: Counter 04"],
-    queueTitle: "Transaction Queue",
+    queueTitle: "Transaction Review",
     highlightKicker: "Transaction Watch",
     metaTags: ["Counter 04", "Review lane", "Approval required"],
-    actionNote: "Clear the current review before moving the next item into approval.",
+    actionNote: "Clear active reviews before opening the next item.",
     primaryAction: "Approve Item",
     secondaryAction: "Hold Review",
   },
   settings: {
-    pageTitle: "Station Settings",
+    pageTitle: "Experience Settings",
     pageLinkHref: "/portal?role=admin&section=settings",
-    pageLinkLabel: "Review checklist",
-    pageDescription:
-      "Review branch hardware, teller setup, and service alerts with the same operational layout.",
-    sideTitle: "Station Checklist",
-    servingTitle: "Station setup review",
-    servingLines: ["Service: Hardware, notifications, and teller setup", "Review updated: 10:42 AM"],
+    pageLinkLabel: "Open checklist",
+    pageDescription: "Devices, roles, and alerts.",
+    sideTitle: "Readiness Checklist",
+    servingTitle: "Experience setup review",
+    servingLines: ["Service: Notifications, routing, and branch setup", "Review updated: 10:42 AM"],
     queueTitle: "Configuration Tasks",
     highlightKicker: "Settings Review",
     metaTags: ["Hardware check", "Alert sync", "Branch setup"],
-    actionNote: "Confirm branch devices and notifications before saving the final setup.",
+    actionNote: "Review devices and alerts before saving.",
     primaryAction: "Save Changes",
     secondaryAction: "Reset Draft",
   },
   help: {
     pageTitle: "Support Center",
     pageLinkHref: "/portal?role=admin&section=help",
-    pageLinkLabel: "Open support guide",
-    pageDescription:
-      "Track escalations, response targets, and support actions without leaving the admin workspace.",
+    pageLinkLabel: "Open support",
+    pageDescription: "Escalations and response queue.",
     sideTitle: "Help Requests",
     servingTitle: "Priority support ticket",
     servingLines: ["Service: Branch support escalation", "Response target: within 12 minutes"],
-    queueTitle: "Support Queue",
-    highlightKicker: "Support Queue",
+    queueTitle: "Support Requests",
+    highlightKicker: "Support Watch",
     metaTags: ["Escalation lane", "Response SLA", "Branch issue"],
-    actionNote: "Close the current ticket or escalate it before pulling the next request.",
+    actionNote: "Resolve or escalate before moving to the next ticket.",
     primaryAction: "Resolve Ticket",
     secondaryAction: "Escalate Issue",
   },
@@ -186,14 +195,33 @@ function getDemandViewOffset(view: DemandView, index: number) {
   return 0;
 }
 
-function buildDemandBars(period: PeriodFilter, service: ServiceFilter, view: DemandView) {
+function buildDemandBars(
+  baseBars: DemandBar[],
+  period: PeriodFilter,
+  service: ServiceFilter,
+  view: DemandView,
+) {
   const periodOffset: Record<PeriodFilter, number> = {
     "7d": -5,
     "30d": 0,
     "90d": 6,
   };
 
-  const nextBars = dashboardDemandBars.map((bar, index) => ({
+  const sourceBars =
+    baseBars.length > 0
+      ? baseBars
+      : [
+          { hour: "09:00", value: 34 },
+          { hour: "10:00", value: 43 },
+          { hour: "11:00", value: 76, highlight: true },
+          { hour: "12:00", value: 88, highlight: true },
+          { hour: "13:00", value: 82, highlight: true },
+          { hour: "14:00", value: 52 },
+          { hour: "15:00", value: 47 },
+          { hour: "16:00", value: 29 },
+        ];
+
+  const nextBars = sourceBars.map((bar, index) => ({
     ...bar,
     value: clamp(bar.value + periodOffset[period] + getServiceOffset(service, index) + getDemandViewOffset(view, index), 18, 92),
   }));
@@ -389,6 +417,138 @@ function parseHighlightDetail(line: string) {
   };
 }
 
+function formatHourLabel(dateTime: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(dateTime));
+}
+
+function formatTimeLabel(dateTime: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(dateTime));
+}
+
+function formatDateLabel(dateTime: string) {
+  return new Intl.DateTimeFormat("en-CA").format(new Date(dateTime));
+}
+
+function mapAdminAppointmentsToQueueEntries(
+  appointments: AdminAppointmentSummary[],
+): QueueEntry[] {
+  return appointments.slice(0, 4).map((appointment) => ({
+    ticket: `A-${appointment.id}`,
+    customer: appointment.customerName,
+    service: appointment.service,
+    status:
+      appointment.status === "COMPLETED"
+        ? "completed"
+        : appointment.status === "WAITING"
+          ? "waiting"
+          : "in-progress",
+    action:
+      appointment.status === "COMPLETED"
+        ? "Done"
+        : appointment.status === "WAITING"
+          ? "Prepare"
+          : "In Session",
+  }));
+}
+
+function mapAdminAppointmentsToTodayAppointments(
+  appointments: AdminAppointmentSummary[],
+): AppointmentEntry[] {
+  return appointments.slice(0, 3).map((appointment) => ({
+    time: formatTimeLabel(appointment.scheduledAt),
+    customer: appointment.customerName,
+    service: appointment.service,
+    status:
+      appointment.status === "COMPLETED"
+        ? "checked-in"
+        : appointment.status === "WAITING"
+          ? "upcoming"
+          : "delayed",
+  }));
+}
+
+function buildServicePerformanceEntries(
+  appointments: AdminAppointmentSummary[],
+): ServicePerformanceEntry[] {
+  const grouped = new Map<
+    string,
+    { tickets: number; assignedStaff: string[] }
+  >();
+
+  appointments.forEach((appointment) => {
+    const current = grouped.get(appointment.service) ?? {
+      tickets: 0,
+      assignedStaff: [],
+    };
+
+    current.tickets += 1;
+
+    if (
+      appointment.assignedStaff &&
+      !current.assignedStaff.includes(appointment.assignedStaff)
+    ) {
+      current.assignedStaff.push(appointment.assignedStaff);
+    }
+
+    grouped.set(appointment.service, current);
+  });
+
+  return Array.from(grouped.entries()).map(([service, value]) => ({
+    service,
+    tickets: value.tickets,
+    avgWait: `${Math.max(5, 8 + value.tickets)}m`,
+    avgDuration: `${Math.max(10, 12 + value.assignedStaff.length * 5)}m`,
+    satisfaction: value.tickets >= 2 ? 5 : 4,
+    staffAssigned:
+      value.assignedStaff.length > 0 ? value.assignedStaff : ["Unassigned"],
+  }));
+}
+
+function buildStaffEfficiencyEntries(
+  appointments: AdminAppointmentSummary[],
+): StaffEfficiencyEntry[] {
+  const grouped = new Map<string, number>();
+
+  appointments.forEach((appointment) => {
+    const key = appointment.assignedStaff ?? "Unassigned";
+    grouped.set(key, (grouped.get(key) ?? 0) + 1);
+  });
+
+  return Array.from(grouped.entries()).map(([name, count]) => ({
+    name,
+    role: name === "Unassigned" ? "Pending" : "Staff",
+    score: clamp(70 + count * 6, 72, 98),
+  }));
+}
+
+function buildDemandBarsFromAppointments(
+  appointments: AdminAppointmentSummary[],
+): DemandBar[] {
+  const byHour = new Map<string, number>();
+
+  appointments.forEach((appointment) => {
+    const hour = formatHourLabel(appointment.scheduledAt);
+    byHour.set(hour, (byHour.get(hour) ?? 0) + 1);
+  });
+
+  const hours = Array.from({ length: 8 }, (_, index) =>
+    `${(9 + index).toString().padStart(2, "0")}:00`,
+  );
+  const maxCount = Math.max(...Array.from(byHour.values()), 1);
+
+  return hours.map((hour) => ({
+    hour,
+    value: clamp(Math.round(((byHour.get(hour) ?? 0) / maxCount) * 88), 18, 92),
+  }));
+}
+
 export function AdminDashboardSections({ focus = "dashboard" }: DashboardSectionsProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>("30d");
   const [selectedService, setSelectedService] = useState<ServiceFilter>("all");
@@ -397,6 +557,9 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
   const [showStaffColumn, setShowStaffColumn] = useState(true);
   const [showTopPerformersOnly, setShowTopPerformersOnly] = useState(false);
   const [actionMessage, setActionMessage] = useState("Dashboard filters are live.");
+  const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [appointments, setAppointments] = useState<AdminAppointmentSummary[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const isDashboard = focus === "dashboard";
   const isAppointments = focus === "appointments";
@@ -412,16 +575,153 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
         : "queue";
   const secondaryContent = secondaryWorkspaceContent[secondaryFocus];
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAdminData() {
+      try {
+        const [overviewResponse, appointmentsResponse] = await Promise.all([
+          getAdminOverview(),
+          getAdminAppointments(),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setOverview(overviewResponse);
+        setAppointments(appointmentsResponse);
+        setLoadError(null);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setLoadError(
+          error instanceof Error && error.message
+            ? error.message
+            : "Unable to load admin dashboard data.",
+        );
+      }
+    }
+
+    void loadAdminData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   if (isAppointments) {
     return <AdminAppointmentsWorkspace />;
   }
 
+  const servicePerformanceEntries = buildServicePerformanceEntries(appointments);
+  const staffEfficiencyEntries = buildStaffEfficiencyEntries(appointments);
+  const adminStats: AdminStat[] = [
+    {
+      label: "Daily Appointments",
+      value: overview?.metrics.totalAppointments ?? "0",
+      trend: `${overview?.metrics.waitingAppointments ?? "0"} Pending`,
+      trendTone: "lime",
+    },
+    {
+      label: "Awaiting Arrival",
+      value: overview?.metrics.waitingAppointments ?? "0",
+      trend: `${overview?.peakHours[0] ?? "No peak hour"}`,
+      trendTone: "orange",
+    },
+    {
+      label: "Completed Today",
+      value: overview?.metrics.completedAppointments ?? "0",
+      trend: `${overview?.topServices[0] ?? "No completed services yet"}`,
+      trendTone: "green",
+    },
+  ];
+  const activeBranchesCount = Number(overview?.metrics.activeBranches ?? "0");
+  const activeStaffCount = Number(overview?.metrics.activeStaff ?? "0");
+  const activeServicesCount = Number(overview?.metrics.activeServices ?? "0");
+  const waitingAppointmentsCount = Number(overview?.metrics.waitingAppointments ?? "0");
+  const completedAppointmentsCount = Number(overview?.metrics.completedAppointments ?? "0");
+  const settingsStats: AdminStat[] = [
+    {
+      label: "Branches Synced",
+      value: String(activeBranchesCount),
+      trend: activeBranchesCount > 0 ? "Network healthy" : "Sync required",
+      trendTone: activeBranchesCount > 0 ? "green" : "orange",
+    },
+    {
+      label: "Staff Access",
+      value: String(activeStaffCount),
+      trend: activeStaffCount > 0 ? "Profiles active" : "No staff loaded",
+      trendTone: activeStaffCount > 0 ? "lime" : "orange",
+    },
+    {
+      label: "Alert Rules",
+      value: String(activeServicesCount),
+      trend: activeServicesCount > 0 ? "Coverage live" : "No alert coverage",
+      trendTone: activeServicesCount > 0 ? "slate" : "orange",
+    },
+  ];
+  const settingsTasks: QueueEntry[] = [
+    {
+      ticket: "CFG-101",
+      customer: "Branch hardware",
+      service: `${activeBranchesCount} branches reporting device status`,
+      status: activeBranchesCount > 0 ? "completed" : "waiting",
+      action: activeBranchesCount > 0 ? "Reviewed" : "Check now",
+    },
+    {
+      ticket: "CFG-102",
+      customer: "Access control",
+      service: `${activeStaffCount} staff profiles ready for admin review`,
+      status: activeStaffCount > 0 ? "in-progress" : "waiting",
+      action: "Verify roles",
+    },
+    {
+      ticket: "CFG-103",
+      customer: "Alert routing",
+      service: `${activeServicesCount} service rules currently monitored`,
+      status: activeServicesCount > 0 ? "in-progress" : "waiting",
+      action: "Open alerts",
+    },
+    {
+      ticket: "CFG-104",
+      customer: "Appointment readiness",
+      service: `${waitingAppointmentsCount} upcoming appointments visible to branch staff`,
+      status: waitingAppointmentsCount > 0 ? "waiting" : "completed",
+      action: waitingAppointmentsCount > 0 ? "Review load" : "Healthy",
+    },
+  ];
+  const settingsChecklist: SettingsChecklistItem[] = [
+    {
+      title: "Device sync status",
+      detail: `${activeBranchesCount} branch workstations are reporting online.`,
+      note: "Confirm branch devices before opening the next service window.",
+      status: activeBranchesCount > 0 ? "completed" : "waiting",
+    },
+    {
+      title: "Role and access review",
+      detail: `${activeStaffCount} staff profiles are available for access validation.`,
+      note: "Make sure branch admins and service staff still have the correct roles.",
+      status: activeStaffCount > 0 ? "in-progress" : "waiting",
+    },
+    {
+      title: "Notification coverage",
+      detail: `${activeServicesCount} service alerts are mapped to the current branch setup.`,
+      note: "Check message routing before saving the final station configuration.",
+      status: activeServicesCount > 0 ? "completed" : "waiting",
+    },
+  ];
+  const liveQueueEntries = mapAdminAppointmentsToQueueEntries(appointments);
+  const todayAppointments = mapAdminAppointmentsToTodayAppointments(appointments);
+  const baseDemandBars = buildDemandBarsFromAppointments(appointments);
   const visibleServicesBase = servicePerformanceEntries.filter((entry) => matchesService(entry.service, selectedService));
   const visibleServices =
     tableFilter === "top-rated"
       ? visibleServicesBase.filter((entry) => entry.satisfaction >= 5)
       : visibleServicesBase;
-  const demandBars = buildDemandBars(selectedPeriod, selectedService, selectedDemandView);
+  const demandBars = buildDemandBars(baseDemandBars, selectedPeriod, selectedService, selectedDemandView);
   const visibleStaffNames = Array.from(new Set(visibleServicesBase.flatMap((entry) => entry.staffAssigned)));
   const staffPool = staffEfficiencyEntries.filter((entry) => visibleStaffNames.includes(entry.name));
   const staffEntries = (staffPool.length > 0 ? staffPool : staffEfficiencyEntries).slice(
@@ -487,6 +787,16 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
       icon: "peak" as const,
     },
   ];
+  const queueItems = liveQueueEntries.slice(0, 4);
+  const arrivalItems = todayAppointments.slice(0, 4);
+  const serviceRows = visibleServices.slice(0, 5);
+  const queueAlertCount = queueItems.filter((item) => item.status === "waiting").length;
+  const nextArrival = arrivalItems[0];
+  const compactSummaryItems = [
+    { label: "Branches", value: String(activeBranchesCount) },
+    { label: "Waiting", value: String(waitingAppointmentsCount) },
+    { label: "Completed", value: String(completedAppointmentsCount) },
+  ];
 
   function handleExport() {
     const headings = [
@@ -520,18 +830,28 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
 
   if (isDashboard) {
     return (
-      <section className="admin-analytics-page">
-        <header className="admin-analytics-hero">
-          <div className="admin-analytics-hero-copy">
-            <h2>Performance Overview</h2>
-            <p>Real-time branch analytics and service trends.</p>
-            <div className="admin-analytics-quick-notes" aria-label="Dashboard guidance">
-              <span>Change period and service filters to update every metric below.</span>
-              <span>Export downloads the current filtered report.</span>
+      <section className="admin-system-page">
+        {loadError ? (
+          <p className="auth-error-message" aria-live="polite">
+            {loadError}
+          </p>
+        ) : null}
+
+        <header className="admin-system-hero">
+          <div className="admin-system-hero-copy">
+            <p className="admin-system-kicker">Operations</p>
+            <h2>Dashboard</h2>
+            <div className="admin-system-inline-stats" aria-label="Dashboard summary">
+              {compactSummaryItems.map((item) => (
+                <span key={item.label}>
+                  <strong>{item.value}</strong>
+                  {item.label}
+                </span>
+              ))}
             </div>
           </div>
 
-          <div className="admin-analytics-hero-actions-wrap">
+          <div className="admin-system-controls">
             <div className="admin-analytics-hero-actions">
               <label className="admin-analytics-filter">
                 <CalendarIcon />
@@ -541,7 +861,9 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
                   onChange={(event) => {
                     const value = event.target.value as PeriodFilter;
                     setSelectedPeriod(value);
-                    setActionMessage(`Updated dashboard period to ${periodOptions.find((option) => option.value === value)?.label}.`);
+                    setActionMessage(
+                      `Period: ${periodOptions.find((option) => option.value === value)?.label}.`,
+                    );
                   }}
                 >
                   {periodOptions.map((option) => (
@@ -561,7 +883,9 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
                   onChange={(event) => {
                     const value = event.target.value as ServiceFilter;
                     setSelectedService(value);
-                    setActionMessage(`Filtered dashboard to ${serviceOptions.find((option) => option.value === value)?.label}.`);
+                    setActionMessage(
+                      `Service: ${serviceOptions.find((option) => option.value === value)?.label}.`,
+                    );
                   }}
                 >
                   {serviceOptions.map((option) => (
@@ -575,41 +899,33 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
 
               <button type="button" className="admin-analytics-export" onClick={handleExport}>
                 <DownloadIcon />
-                <span>Export Report</span>
+                <span>Export</span>
               </button>
             </div>
-
-            <p className="admin-analytics-feedback" aria-live="polite">
-              {actionMessage}
-            </p>
           </div>
         </header>
 
-        <section className="admin-analytics-stats-grid" aria-label="Performance summary">
+        <section className="admin-system-metrics-grid" aria-label="Performance summary">
           {dashboardMetrics.map((metric) => (
-            <article key={metric.label} className="admin-analytics-stat-card">
-              <div className="admin-analytics-stat-top">
-                <span className="admin-analytics-stat-icon" aria-hidden="true">
+            <article key={metric.label} className="admin-system-metric-card">
+              <div className="admin-system-metric-top">
+                <span className="admin-system-metric-icon" aria-hidden="true">
                   <MetricIcon icon={metric.icon} />
                 </span>
-                <span className={`admin-analytics-pill is-${metric.deltaTone}`.trim()}>{metric.delta}</span>
+                <span className={`admin-analytics-pill is-${metric.deltaTone}`.trim()}>
+                  {metric.delta}
+                </span>
               </div>
-
-              <div className="admin-analytics-stat-copy">
-                <p>{metric.label}</p>
-                <strong>{metric.value}</strong>
-              </div>
+              <span className="admin-system-metric-label">{metric.label}</span>
+              <strong>{metric.value}</strong>
             </article>
           ))}
         </section>
 
-        <section className="admin-analytics-grid">
-          <article className="admin-analytics-panel admin-demand-panel">
-            <div className="admin-analytics-panel-head">
-              <div className="admin-panel-heading-copy">
-                <h3>Hourly Service Demand</h3>
-                <p>Shows where demand peaks based on your current filters.</p>
-              </div>
+        <section className="admin-system-grid">
+          <article className="admin-system-panel admin-system-panel-wide">
+            <div className="admin-system-panel-head">
+              <h3>Demand</h3>
               <label className="admin-panel-select">
                 <select
                   className="admin-panel-select-input"
@@ -617,7 +933,9 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
                   onChange={(event) => {
                     const value = event.target.value as DemandView;
                     setSelectedDemandView(value);
-                    setActionMessage(`Demand chart switched to ${demandViewOptions.find((option) => option.value === value)?.label}.`);
+                    setActionMessage(
+                      `View: ${demandViewOptions.find((option) => option.value === value)?.label}.`,
+                    );
                   }}
                 >
                   {demandViewOptions.map((option) => (
@@ -643,34 +961,164 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
                 </div>
               ))}
             </div>
+
+            <div className="admin-system-chart-summary">
+              <div className="admin-system-summary-chip">
+                <span>Peak</span>
+                <strong>{peakHoursLabel}</strong>
+              </div>
+              <div className="admin-system-summary-chip">
+                <span>Top service</span>
+                <strong>{overview?.topServices[0] ?? "No data"}</strong>
+              </div>
+              <div className="admin-system-summary-chip">
+                <span>Volume</span>
+                <strong>{customerVolume.toLocaleString()}</strong>
+              </div>
+            </div>
           </article>
 
-          <article className="admin-analytics-panel admin-efficiency-panel">
-            <div className="admin-analytics-panel-head">
-              <div className="admin-panel-heading-copy">
-                <h3>Staff Throughput Efficiency</h3>
-                <p>Compare active staff output for the selected service mix.</p>
+          <aside className="admin-system-stack">
+            <article className="admin-system-panel">
+              <div className="admin-system-panel-head">
+                <h3>Live board</h3>
+                <span
+                  className={`admin-analytics-pill is-${queueAlertCount > 0 ? "alert" : "positive"}`.trim()}
+                >
+                  {queueAlertCount > 0 ? `${queueAlertCount} waiting` : "Stable"}
+                </span>
               </div>
+
+              <div className="admin-system-queue-list">
+                {queueItems.map((entry) => (
+                  <div key={entry.ticket} className="admin-system-queue-item">
+                    <div>
+                      <strong>{entry.customer}</strong>
+                      <span>{entry.service}</span>
+                    </div>
+                    <span className={`admin-status-badge is-${entry.status}`.trim()}>
+                      {formatStatusLabel(entry.status)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="admin-system-panel">
+              <div className="admin-system-panel-head">
+                <h3>Next arrival</h3>
+                <Link href="/portal/bookings?role=admin" className="admin-inline-link">
+                  Open
+                </Link>
+              </div>
+
+              {nextArrival ? (
+                <div className="admin-system-next-card">
+                  <span className="admin-system-next-time">{nextArrival.time}</span>
+                  <strong>{nextArrival.customer}</strong>
+                  <p>{nextArrival.service}</p>
+                  <span
+                    className={`admin-status-badge is-${nextArrival.status === "checked-in" ? "completed" : nextArrival.status === "delayed" ? "waiting" : "in-progress"}`.trim()}
+                  >
+                    {nextArrival.status === "checked-in"
+                      ? "Checked In"
+                      : nextArrival.status === "delayed"
+                        ? "Delayed"
+                        : "Upcoming"}
+                  </span>
+                </div>
+              ) : (
+                <div className="admin-system-empty">No upcoming arrival.</div>
+              )}
+            </article>
+          </aside>
+        </section>
+
+        <section className="admin-system-grid admin-system-grid-lower">
+          <article className="admin-system-panel admin-system-panel-wide">
+            <div className="admin-system-panel-head">
+              <h3>Service mix</h3>
+              <div className="admin-analytics-table-actions">
+                <button
+                  type="button"
+                  className={`admin-table-action ${tableFilter === "top-rated" ? "is-active" : ""}`.trim()}
+                  onClick={() => {
+                    const nextFilter = tableFilter === "all" ? "top-rated" : "all";
+                    setTableFilter(nextFilter);
+                    setActionMessage(
+                      nextFilter === "top-rated" ? "Top-rated services only." : "All services visible.",
+                    );
+                  }}
+                >
+                  {tableFilter === "all" ? "Top rated" : "Show all"}
+                </button>
+                <button
+                  type="button"
+                  className={`admin-table-action ${showStaffColumn ? "is-active" : ""}`.trim()}
+                  onClick={() => {
+                    setShowStaffColumn((current) => !current);
+                    setActionMessage(showStaffColumn ? "Staff hidden." : "Staff visible.");
+                  }}
+                >
+                  {showStaffColumn ? "Hide staff" : "Show staff"}
+                </button>
+              </div>
+            </div>
+
+            {serviceRows.length === 0 ? (
+              <div className="admin-system-empty">No services match the current filter.</div>
+            ) : (
+              <div className="admin-system-service-list">
+                {serviceRows.map((entry) => (
+                  <div key={entry.service} className="admin-system-service-row">
+                    <div className="admin-system-service-main">
+                      <strong>{entry.service}</strong>
+                      <span>
+                        {Math.round(
+                          entry.tickets * (selectedPeriod === "7d" ? 0.82 : selectedPeriod === "90d" ? 1.2 : 1),
+                        )}{" "}
+                        tickets
+                      </span>
+                    </div>
+                    <span>{entry.avgWait}</span>
+                    <span>{entry.avgDuration}</span>
+                    <RatingStars value={entry.satisfaction} />
+                    {showStaffColumn ? (
+                      <div className="admin-service-staff">
+                        {entry.staffAssigned.slice(0, 3).map((name) => (
+                          <span key={name} className="admin-service-avatar" title={name}>
+                            {getInitials(name)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <article className="admin-system-panel">
+            <div className="admin-system-panel-head">
+              <h3>Team</h3>
               <button
                 type="button"
                 className={`admin-panel-icon-button ${showTopPerformersOnly ? "is-active" : ""}`.trim()}
                 aria-label="Toggle top performers"
                 onClick={() => {
                   setShowTopPerformersOnly((current) => !current);
-                  setActionMessage(showTopPerformersOnly ? "Showing all active staff again." : "Showing top performers only.");
+                  setActionMessage(showTopPerformersOnly ? "Full team visible." : "Top performers only.");
                 }}
               >
                 <MoreIcon />
               </button>
             </div>
 
-            <div className="admin-efficiency-list">
+            <div className="admin-system-team-list">
               {staffEntries.map((member) => (
-                <div key={member.name} className="admin-efficiency-item">
+                <div key={member.name} className="admin-system-team-item">
                   <div className="admin-efficiency-row">
-                    <span>
-                      {member.name} ({member.role})
-                    </span>
+                    <span>{member.name}</span>
                     <strong>{member.score}%</strong>
                   </div>
                   <div className="admin-efficiency-track" aria-hidden="true">
@@ -682,98 +1130,203 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
           </article>
         </section>
 
-        <section className="admin-analytics-table-panel">
-          <div className="admin-analytics-table-head">
-            <div className="admin-panel-heading-copy">
-              <h3>Service Performance Details</h3>
-              <p>Detailed service rows for the currently selected period and service group.</p>
+        <p className="admin-analytics-feedback" aria-live="polite">
+          {actionMessage}
+        </p>
+      </section>
+    );
+  }
+
+  if (isSettings) {
+    return (
+      <section className="admin-analytics-page admin-secondary-page">
+        {loadError ? (
+          <p className="auth-error-message" aria-live="polite">
+            {loadError}
+          </p>
+        ) : null}
+
+        <header className="admin-analytics-hero">
+          <div className="admin-analytics-hero-copy">
+            <p className="admin-secondary-page-kicker">Settings</p>
+            <h2>Experience Settings</h2>
+            <p>Devices, roles, and alerts.</p>
+          </div>
+
+          <div className="admin-analytics-hero-actions">
+            <Link href={secondaryContent.pageLinkHref} className="admin-table-action">
+              {secondaryContent.pageLinkLabel}
+            </Link>
+          </div>
+        </header>
+
+        <section
+          className="admin-analytics-stats-grid admin-analytics-stats-grid-secondary"
+          aria-label="Experience settings summary"
+        >
+          {settingsStats.map((stat, index) => (
+            <article key={stat.label} className="admin-analytics-stat-card">
+              <div className="admin-analytics-stat-top">
+                <span className="admin-analytics-stat-icon" aria-hidden="true">
+                  <MetricIcon icon={index === 0 ? "service" : index === 1 ? "volume" : "peak"} />
+                </span>
+                <span className={`admin-analytics-pill is-${mapTrendTone(stat.trendTone)}`.trim()}>{stat.trend}</span>
+              </div>
+
+              <div className="admin-analytics-stat-copy">
+                <p>{stat.label}</p>
+                <strong>{stat.value}</strong>
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <section className="admin-analytics-panel admin-operations-highlight">
+            <div className="admin-operations-highlight-main">
+              <div className="admin-operations-highlight-copy">
+              <p className="admin-secondary-page-kicker">Readiness</p>
+              <h3>Configuration review</h3>
+              <div className="admin-operations-highlight-lines">
+                <p>Branches online: {activeBranchesCount}</p>
+                <p>Completed service sessions today: {completedAppointmentsCount}</p>
+              </div>
             </div>
-            <div className="admin-analytics-table-actions">
-              <button
-                type="button"
-                className={`admin-table-action ${tableFilter === "top-rated" ? "is-active" : ""}`.trim()}
-                onClick={() => {
-                  const nextFilter = tableFilter === "all" ? "top-rated" : "all";
-                  setTableFilter(nextFilter);
-                  setActionMessage(
-                    nextFilter === "top-rated"
-                      ? "Table filtered to top-rated services."
-                      : "Table showing all matched services.",
-                  );
-                }}
-              >
-                {tableFilter === "all" ? "Top Rated Only" : "Show All Services"}
-              </button>
-              <button
-                type="button"
-                className={`admin-table-action ${showStaffColumn ? "is-active" : ""}`.trim()}
-                onClick={() => {
-                  setShowStaffColumn((current) => !current);
-                  setActionMessage(showStaffColumn ? "Staff column hidden." : "Staff column visible.");
-                }}
-              >
-                {showStaffColumn ? "Hide Staff Column" : "Show Staff Column"}
-              </button>
+
+            <div className="admin-operations-highlight-tags" aria-label="Current settings context">
+              <span>Hardware sync</span>
+              <span>Role access</span>
+              <span>Alert routing</span>
+            </div>
+
+            <div className="admin-operations-highlight-details">
+              <article className="admin-operations-highlight-detail-card">
+                <span>Branch network</span>
+                <strong>{activeBranchesCount} online</strong>
+              </article>
+              <article className="admin-operations-highlight-detail-card">
+                <span>Staff access</span>
+                <strong>{activeStaffCount} active profiles</strong>
+              </article>
+              <article className="admin-operations-highlight-detail-card">
+                <span>Alert coverage</span>
+                <strong>{activeServicesCount} rules live</strong>
+              </article>
+              <article className="admin-operations-highlight-detail-card">
+                <span>Appointment visibility</span>
+                <strong>{waitingAppointmentsCount} upcoming appointments</strong>
+              </article>
             </div>
           </div>
 
-          {visibleServices.length === 0 ? (
-            <div className="admin-service-empty">
-              <strong>No services match the current filters.</strong>
-              <p>Try a different service group or clear the top-rated filter.</p>
-            </div>
-          ) : (
-            <div className="admin-service-table">
-              <div
-                className={`admin-service-table-head ${showStaffColumn ? "" : "is-compact"}`.trim()}
+          <div className="admin-operations-highlight-actions">
+            <div className="admin-operations-highlight-action-card">
+              <span className="admin-operations-highlight-action-label">Next action</span>
+              <button
+                type="button"
+                className="admin-analytics-export"
+                onClick={() => setActionMessage("Settings checklist reviewed. Ready to save branch changes.")}
               >
-                <span>Service Type</span>
-                <span>Tickets</span>
-                <span>Avg. Wait</span>
-                <span>Avg. Duration</span>
-                <span>Satisfaction</span>
-                {showStaffColumn ? <span>Staff Assigned</span> : null}
+                <CheckCircleIcon />
+                <span>Save Changes</span>
+              </button>
+              <button
+                type="button"
+                className="admin-table-action"
+                onClick={() => setActionMessage("Draft settings reset for another review pass.")}
+              >
+                <NoShowIcon />
+                <span>Reset Draft</span>
+              </button>
+              <p>Review before publish.</p>
+            </div>
+          </div>
+
+          <div className="admin-operations-highlight-art" aria-hidden="true">
+            <QueueIllustrationIcon />
+          </div>
+        </section>
+
+        <section className="admin-analytics-grid">
+          <article className="admin-analytics-panel">
+            <div className="admin-analytics-panel-head">
+              <div className="admin-panel-heading-copy">
+                <h3>Configuration Tasks</h3>
+                <p>Current review items.</p>
+              </div>
+            </div>
+
+            <div className="admin-operations-table">
+              <div className="admin-operations-table-head">
+                <span>Task</span>
+                <span>Area</span>
+                <span>Detail</span>
+                <span>Status</span>
+                <span>Action</span>
               </div>
 
-              {visibleServices.map((entry) => (
-                <div
-                  key={entry.service}
-                  className={`admin-service-table-row ${showStaffColumn ? "" : "is-compact"}`.trim()}
-                >
-                  <strong>{entry.service}</strong>
-                  <span>{Math.round(entry.tickets * (selectedPeriod === "7d" ? 0.82 : selectedPeriod === "90d" ? 1.2 : 1))}</span>
-                  <span>{entry.avgWait}</span>
-                  <span>{entry.avgDuration}</span>
-                  <RatingStars value={entry.satisfaction} />
-                  {showStaffColumn ? (
-                    <div className="admin-service-staff">
-                      {entry.staffAssigned.slice(0, 3).map((name) => (
-                        <span key={name} className="admin-service-avatar" title={name}>
-                          {getInitials(name)}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
+              {settingsTasks.map((entry) => (
+                <div key={entry.ticket} className="admin-operations-table-row">
+                  <strong>{entry.ticket}</strong>
+                  <span>{entry.customer}</span>
+                  <span>{entry.service}</span>
+                  <span className={`admin-status-badge is-${entry.status}`.trim()}>
+                    {formatStatusLabel(entry.status)}
+                  </span>
+                  <span className={`admin-row-action is-${entry.status}`.trim()}>{entry.action}</span>
                 </div>
               ))}
             </div>
-          )}
+          </article>
+
+          <aside className="admin-analytics-panel">
+            <div className="admin-analytics-panel-head">
+              <div className="admin-panel-heading-copy">
+                <h3>Settings Checklist</h3>
+                <p>Before approval.</p>
+              </div>
+            </div>
+
+            <div className="admin-operations-card-list">
+              {settingsChecklist.map((item) => (
+                <article
+                  key={item.title}
+                  className={`admin-operations-card ${item.status === "waiting" ? "is-alert" : ""}`.trim()}
+                >
+                  <div className="admin-operations-card-top">
+                    <span className="admin-appointment-time">{item.status === "completed" ? "Ready" : item.status === "in-progress" ? "Review" : "Pending"}</span>
+                    <span className={`admin-status-badge is-${item.status === "in-progress" ? "in-progress" : item.status}`.trim()}>
+                      {formatStatusLabel(item.status)}
+                    </span>
+                  </div>
+                  <strong>{item.title}</strong>
+                  <p>{item.detail}</p>
+                  <span className="admin-appointment-alert">{item.note}</span>
+                </article>
+              ))}
+            </div>
+          </aside>
         </section>
+
+        <p className="admin-analytics-feedback" aria-live="polite">
+          {actionMessage}
+        </p>
       </section>
     );
   }
 
   return (
     <section className="admin-analytics-page admin-secondary-page">
+      {loadError ? (
+        <p className="auth-error-message" aria-live="polite">
+          {loadError}
+        </p>
+      ) : null}
+
       <header className="admin-analytics-hero">
         <div className="admin-analytics-hero-copy">
-          <p className="admin-secondary-page-kicker">Operations Workspace</p>
+          <p className="admin-secondary-page-kicker">Operations</p>
           <h2>{secondaryContent.pageTitle}</h2>
           <p>{secondaryContent.pageDescription}</p>
-          <div className="admin-analytics-quick-notes" aria-label="Workspace guidance">
-            <span>Top cards summarize today&apos;s operating status.</span>
-            <span>The review panel highlights the most important action for this page.</span>
-          </div>
         </div>
 
         <div className="admin-analytics-hero-actions">
@@ -861,7 +1414,7 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
           <div className="admin-analytics-panel-head">
             <div className="admin-panel-heading-copy">
               <h3>{secondaryContent.queueTitle}</h3>
-              <p>Live operational items that still need action.</p>
+              <p>Live items.</p>
             </div>
             <Link href={secondaryContent.pageLinkHref} className="admin-inline-link">
               {secondaryContent.pageLinkLabel}
@@ -898,7 +1451,7 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
           <div className="admin-analytics-panel-head">
             <div className="admin-panel-heading-copy">
               <h3>{secondaryContent.sideTitle}</h3>
-              <p>Upcoming items and team follow-up tasks for this workspace.</p>
+              <p>Next items.</p>
             </div>
           </div>
 

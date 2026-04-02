@@ -10,6 +10,7 @@ const bookingIdSchema = z
 const bookingDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const bookingTimeSchema = z.string().regex(/^\d{2}:\d{2}$/);
 const bookingConfirmedSchema = z.literal("1");
+const appointmentIdSchema = z.string().regex(/^\d+$/);
 
 function getOptionalValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -36,5 +37,6 @@ export function parseBookingParams(input?: Record<string, unknown> | URLSearchPa
     date: parseOptionalField(bookingDateSchema, getValue("date")),
     time: parseOptionalField(bookingTimeSchema, getValue("time")),
     confirmed: parseOptionalField(bookingConfirmedSchema, getValue("confirmed")),
+    appointmentId: parseOptionalField(appointmentIdSchema, getValue("appointmentId")),
   };
 }

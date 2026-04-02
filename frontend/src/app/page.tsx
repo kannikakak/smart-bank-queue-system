@@ -2,11 +2,19 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { MetricCard } from "@/shared/components/MetricCard";
-import { RoleCard } from "@/shared/components/RoleCard";
-import { login } from "@/shared/lib/api";
-import { TopNav } from "@/shared/components/TopNav";
+import { useState } from "react";
+import { login, register } from "@/shared/lib/api";
+
+function BankIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 3 3 7v2h18V7l-9-4Zm-6 8h2v6H6v-6Zm5 0h2v6h-2v-6Zm5 0h2v6h-2v-6ZM3 19h18v2H3v-2Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 function MailIcon() {
   return (
@@ -41,76 +49,24 @@ function EyeIcon() {
   );
 }
 
-function ArrowIcon() {
+function UserIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path
-        d="M12.3 5.3a1 1 0 0 1 1.4 0l6 6a1 1 0 0 1 0 1.4l-6 6a1 1 0 1 1-1.4-1.4l4.3-4.3H5a1 1 0 1 1 0-2h11.6l-4.3-4.3a1 1 0 0 1 0-1.4Z"
+        d="M12 12a4.25 4.25 0 1 0-4.25-4.25A4.25 4.25 0 0 0 12 12Zm0 2c-4 0-7.25 2.52-7.25 5.63 0 .2.17.37.37.37h13.76c.2 0 .37-.17.37-.37C19.25 16.52 16 14 12 14Z"
         fill="currentColor"
       />
     </svg>
   );
 }
 
-const roleContent = {
-  customer: {
-    introTitle: "Customer portal access",
-    introText: "Use the access form below to continue to the booking and queue experience.",
-    fieldLabel: "Email or Username",
-    fieldPlaceholder: "e.g. alex@smartq.com",
-    forgotText: "Need help signing in?",
-    rememberText: "Remember this device for 30 days",
-    buttonText: "Continue as Customer",
-    supportNote: "Need account assistance?",
-    supportAction: "Contact support",
-    spotlightLabel: "Customer service overview",
-    spotlightText:
-      "Monitor queue activity and customer flow across branch locations in real time.",
-  },
-  admin: {
-    introTitle: "Admin workspace access",
-    introText: "Use the staff access form below to open the operations control workspace.",
-    fieldLabel: "Staff ID or Email",
-    fieldPlaceholder: "e.g. branch.manager@smartq.com",
-    forgotText: "Need access help?",
-    rememberText: "Keep this workstation signed in",
-    buttonText: "Continue as Admin",
-    supportNote: "Need access approval?",
-    supportAction: "Contact IT support",
-    spotlightLabel: "Branch operations overview",
-    spotlightText:
-      "Track service desk availability, staff activity, and queue coordination across branches.",
-  },
-  staff: {
-    introTitle: "Staff workspace access",
-    introText: "Use the branch access form below to continue to the staff service workspace.",
-    fieldLabel: "Staff ID or Email",
-    fieldPlaceholder: "e.g. teller01@smartq.com",
-    forgotText: "Need help signing in?",
-    rememberText: "Keep this branch device signed in",
-    buttonText: "Continue as Staff",
-    supportNote: "Need branch support?",
-    supportAction: "Contact operations",
-    spotlightLabel: "Staff service view",
-    spotlightText:
-      "Stay on top of customer appointments, service desks, and branch support activity.",
-  },
-} as const;
+type AuthMode = "signin" | "register";
 
-const demoCredentials = {
-  customer: {
-    email: "customer@smartq.local",
-    password: "Customer@123",
-  },
-  admin: {
-    email: "admin@smartq.local",
-    password: "Admin@123",
-  },
-  staff: {
-    email: "staff@smartq.local",
-    password: "Staff@123",
-  },
-} as const;
+const authStorageKeys = [
+  "smartq.accessToken",
+  "smartq.role",
+  "smartq.displayName",
+] as const;
 
 function mapApiRoleToPortalRole(role: "CUSTOMER" | "STAFF" | "ADMIN") {
   if (role === "ADMIN") {
@@ -126,30 +82,37 @@ function mapApiRoleToPortalRole(role: "CUSTOMER" | "STAFF" | "ADMIN") {
 
 export default function HomePage() {
   const router = useRouter();
-  const [selectedRole, setSelectedRole] =
-    useState<keyof typeof roleContent>("customer");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [email, setEmail] = useState<string>(demoCredentials.customer.email);
-  const [password, setPassword] = useState<string>(demoCredentials.customer.password);
+  const [mode, setMode] = useState<AuthMode>("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [rememberDevice, setRememberDevice] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const content = roleContent[selectedRole];
-  const supportHref =
-    selectedRole === "admin"
-      ? "/portal?role=admin&section=help"
-      : selectedRole === "staff"
-        ? "/portal?role=staff#support"
-        : "/portal?role=customer#support";
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [registerName, setRegisterName] = useState("");
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
 
-  useEffect(() => {
-    setEmail(demoCredentials[selectedRole].email);
-    setPassword(demoCredentials[selectedRole].password);
+  function clearStoredAuth() {
+    authStorageKeys.forEach((key) => {
+      window.localStorage.removeItem(key);
+      window.sessionStorage.removeItem(key);
+    });
+  }
+
+  function switchMode(nextMode: AuthMode) {
+    setMode(nextMode);
     setErrorMessage(null);
-  }, [selectedRole]);
+    setInfoMessage(null);
+    setIsSubmitting(false);
+  }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleLoginSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage(null);
+    setInfoMessage(null);
     setIsSubmitting(true);
 
     try {
@@ -160,6 +123,7 @@ export default function HomePage() {
       const resolvedRole = mapApiRoleToPortalRole(auth.role);
       const storage = rememberDevice ? window.localStorage : window.sessionStorage;
 
+      clearStoredAuth();
       storage.setItem("smartq.accessToken", auth.accessToken);
       storage.setItem("smartq.role", resolvedRole);
       storage.setItem("smartq.displayName", auth.displayName);
@@ -176,71 +140,88 @@ export default function HomePage() {
     }
   }
 
+  async function handleRegisterSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setErrorMessage(null);
+    setInfoMessage(null);
+
+    if (registerPassword !== registerConfirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const auth = await register({
+        fullName: registerName.trim(),
+        email: registerEmail.trim(),
+        password: registerPassword,
+      });
+      const resolvedRole = mapApiRoleToPortalRole(auth.role);
+
+      clearStoredAuth();
+      window.localStorage.setItem("smartq.accessToken", auth.accessToken);
+      window.localStorage.setItem("smartq.role", resolvedRole);
+      window.localStorage.setItem("smartq.displayName", auth.displayName);
+
+      setInfoMessage("Account created successfully. Redirecting to your portal...");
+      router.push(`/portal?role=${resolvedRole}`);
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim().length > 0
+          ? error.message
+          : "Unable to create your account right now.";
+      setErrorMessage(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
-    <main className="banking-page">
-      <TopNav />
+    <main className="banking-page banking-page-auth-compact">
+      <section className="auth-compact-shell">
+        <Link href="/" className="brand auth-page-brand auth-page-brand-compact" aria-label="SmartQ Home">
+          <span className="brand-badge" aria-hidden="true">
+            <BankIcon />
+          </span>
+          <span className="brand-copy">
+            <span className="brand-name">SmartQ Bank</span>
+            <span className="brand-subtitle">Banking Queue Platform</span>
+          </span>
+        </Link>
 
-      <section className="auth-shell">
-        <div className="showcase-panel">
-          <div className="showcase-copy">
-            <p className="showcase-kicker">Digital banking operations portal</p>
-            <h1>
-              Secure access for branch and customer services.
-            </h1>
-            <p className="showcase-text">
-              Manage branch queues, customer access, and service operations from
-              one reliable banking platform.
+        <div className="auth-card auth-card-simple auth-card-compact">
+          <div className="auth-tabs" role="tablist" aria-label="Authentication">
+            <button
+              type="button"
+              className={`auth-tab${mode === "signin" ? " is-active" : ""}`}
+              onClick={() => switchMode("signin")}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              className={`auth-tab${mode === "register" ? " is-active" : ""}`}
+              onClick={() => switchMode("register")}
+            >
+              Register
+            </button>
+          </div>
+
+          <div className="login-intro login-intro-compact">
+            <h1>{mode === "signin" ? "Welcome back" : "Create account"}</h1>
+            <p>
+              {mode === "signin"
+                ? "Sign in with your account to continue."
+                : "Fill in your details to create a new account."}
             </p>
-
-            <div className="showcase-points" aria-label="Platform highlights">
-              <span>Queue visibility</span>
-              <span>Role-based access</span>
-              <span>Branch coordination</span>
-            </div>
           </div>
 
-          <div className="showcase-lower">
-            <div className="showcase-spotlight">
-              <p className="spotlight-label">{content.spotlightLabel}</p>
-              <strong>24 active service desks</strong>
-              <span>{content.spotlightText}</span>
-            </div>
-
-            <MetricCard
-              title="Multi-Factor Security"
-              description="Protect staff and customer accounts with controlled access and secure authentication."
-            />
-          </div>
-        </div>
-
-        <div className="login-panel">
-          <div className="login-intro">
-            <h2>{content.introTitle}</h2>
-            <p>{content.introText}</p>
-          </div>
-
-          <div className="auth-card">
-            <div className="role-grid" aria-label="Login roles">
-              <RoleCard
-                title="Customer"
-                active={selectedRole === "customer"}
-                onClick={() => setSelectedRole("customer")}
-              />
-              <RoleCard
-                title="Admin"
-                active={selectedRole === "admin"}
-                onClick={() => setSelectedRole("admin")}
-              />
-              <RoleCard
-                title="Staff"
-                active={selectedRole === "staff"}
-                onClick={() => setSelectedRole("staff")}
-              />
-            </div>
-
-            <form className="login-form" onSubmit={handleSubmit}>
+          {mode === "signin" ? (
+            <form className="login-form" onSubmit={handleLoginSubmit}>
               <label className="field-label" htmlFor="email">
-                {content.fieldLabel}
+                Email
               </label>
               <div className="field-shell">
                 <span className="field-icon">
@@ -249,26 +230,19 @@ export default function HomePage() {
                 <input
                   id="email"
                   name="email"
-                  type="text"
-                  placeholder={content.fieldPlaceholder}
+                  type="email"
                   autoComplete="username"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  spellCheck={false}
+                  placeholder="Enter your email"
                   suppressHydrationWarning
                   required
                 />
               </div>
 
-              <div className="field-row">
-                <label className="field-label" htmlFor="password">
-                  Password
-                </label>
-                <Link href={supportHref} className="text-link">
-                  {content.forgotText}
-                </Link>
-              </div>
-
+              <label className="field-label" htmlFor="password">
+                Password
+              </label>
               <div className="field-shell">
                 <span className="field-icon">
                   <LockIcon />
@@ -276,34 +250,38 @@ export default function HomePage() {
                 <input
                   id="password"
                   name="password"
-                  type="password"
-                  placeholder="........"
+                  type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Enter your password"
                   suppressHydrationWarning
                   required
                 />
                 <button
                   className="icon-button"
                   type="button"
-                  aria-label="Show password"
-                  suppressHydrationWarning
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((current) => !current)}
                 >
                   <EyeIcon />
                 </button>
               </div>
 
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  name="rememberDevice"
-                  checked={rememberDevice}
-                  onChange={(event) => setRememberDevice(event.target.checked)}
-                  suppressHydrationWarning
-                />
-                <span>{content.rememberText}</span>
-              </label>
+              <div className="auth-form-meta auth-form-meta-compact">
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={rememberDevice}
+                    onChange={(event) => setRememberDevice(event.target.checked)}
+                    suppressHydrationWarning
+                  />
+                  <span>Remember me</span>
+                </label>
+                <a className="text-link" href="mailto:support@smartq.local">
+                  Forgot password
+                </a>
+              </div>
 
               {errorMessage ? (
                 <p className="auth-error-message" aria-live="polite">
@@ -311,37 +289,128 @@ export default function HomePage() {
                 </p>
               ) : null}
 
+              {infoMessage ? (
+                <p className="auth-info-message" aria-live="polite">
+                  {infoMessage}
+                </p>
+              ) : null}
+
               <button
-                className="sign-in-button"
+                className="sign-in-button sign-in-button-simple"
                 type="submit"
                 disabled={isSubmitting}
                 suppressHydrationWarning
               >
-                <span>{isSubmitting ? "Signing In..." : content.buttonText}</span>
-                <ArrowIcon />
+                <span>{isSubmitting ? "Signing In..." : "Sign In"}</span>
               </button>
             </form>
+          ) : (
+            <form className="login-form" onSubmit={handleRegisterSubmit}>
+              <label className="field-label" htmlFor="registerName">
+                Full name
+              </label>
+              <div className="field-shell">
+                <span className="field-icon">
+                  <UserIcon />
+                </span>
+                <input
+                  id="registerName"
+                  name="registerName"
+                  type="text"
+                  autoComplete="name"
+                  value={registerName}
+                  onChange={(event) => setRegisterName(event.target.value)}
+                  placeholder="Enter your full name"
+                  suppressHydrationWarning
+                  required
+                />
+              </div>
 
-            <div className="login-divider" />
+              <label className="field-label" htmlFor="registerEmail">
+                Email
+              </label>
+              <div className="field-shell">
+                <span className="field-icon">
+                  <MailIcon />
+                </span>
+                <input
+                  id="registerEmail"
+                  name="registerEmail"
+                  type="email"
+                  autoComplete="email"
+                  value={registerEmail}
+                  onChange={(event) => setRegisterEmail(event.target.value)}
+                  placeholder="Enter your email"
+                  suppressHydrationWarning
+                  required
+                />
+              </div>
 
-            <p className="signup-note">
-              {content.supportNote} <Link href={supportHref}>{content.supportAction}</Link>
-            </p>
+              <label className="field-label" htmlFor="registerPassword">
+                Password
+              </label>
+              <div className="field-shell">
+                <span className="field-icon">
+                  <LockIcon />
+                </span>
+                <input
+                  id="registerPassword"
+                  name="registerPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  value={registerPassword}
+                  onChange={(event) => setRegisterPassword(event.target.value)}
+                  placeholder="Create a password"
+                  suppressHydrationWarning
+                  required
+                />
+              </div>
 
-            <p className="signup-note">
-              Local demo: use <strong>{demoCredentials[selectedRole].email}</strong> /{" "}
-              <strong>{demoCredentials[selectedRole].password}</strong>
-            </p>
-          </div>
+              <label className="field-label" htmlFor="registerConfirmPassword">
+                Confirm password
+              </label>
+              <div className="field-shell">
+                <span className="field-icon">
+                  <LockIcon />
+                </span>
+                <input
+                  id="registerConfirmPassword"
+                  name="registerConfirmPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  value={registerConfirmPassword}
+                  onChange={(event) => setRegisterConfirmPassword(event.target.value)}
+                  placeholder="Confirm your password"
+                  suppressHydrationWarning
+                  required
+                />
+              </div>
+
+              {errorMessage ? (
+                <p className="auth-error-message" aria-live="polite">
+                  {errorMessage}
+                </p>
+              ) : null}
+
+              {infoMessage ? (
+                <p className="auth-info-message" aria-live="polite">
+                  {infoMessage}
+                </p>
+              ) : null}
+
+              <button
+                className="sign-in-button sign-in-button-simple"
+                type="submit"
+                disabled={isSubmitting}
+              >
+                <span>{isSubmitting ? "Creating..." : "Create account"}</span>
+              </button>
+            </form>
+          )}
         </div>
       </section>
 
       <footer className="site-footer">
-        <nav className="footer-links" aria-label="Footer">
-          <Link href="/portal?role=customer">Portal Home</Link>
-          <Link href="/portal/branches?role=customer#branch-selection">Booking Flow</Link>
-          <Link href="/portal?role=customer#support">Support</Link>
-        </nav>
         <p>Copyright 2024 SmartQ Banking Systems Inc. All rights reserved.</p>
       </footer>
     </main>

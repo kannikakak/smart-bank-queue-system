@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "SmartQ Banking Portal",
-  description: "Secure banking queue and access portal.",
+  description: "Secure banking appointment and access portal.",
 };
 
 export default function RootLayout({

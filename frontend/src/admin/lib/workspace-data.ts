@@ -115,7 +115,7 @@ export const adminStats: AdminStat[] = [
     trendTone: "lime",
   },
   {
-    label: "Waiting in Queue",
+    label: "Awaiting Arrival",
     value: "07",
     trend: "Avg. 12m",
     trendTone: "orange",
@@ -358,7 +358,7 @@ export const analyticsBars: AnalyticsBar[] = [
 
 export const reminderCard: ReminderCard = {
   title: "Branch lead sync",
-  detail: "Review teller allocation and lunch coverage for the midday rush.",
+  detail: "Review advisor allocation and lunch coverage for the midday rush.",
   time: "02:00 PM - 02:30 PM",
   action: "Start Briefing",
 };
@@ -372,27 +372,27 @@ export const teamMembers: TeamMember[] = [
   },
   {
     name: "Edwin Adenike",
-    role: "Counter Supervisor",
-    task: "Rebalancing teller coverage and check-in flow",
+    role: "Branch Supervisor",
+    task: "Rebalancing advisor coverage and check-in flow",
     status: "in-progress",
   },
   {
     name: "Isaac Oluwatemilorun",
-    role: "Queue Coordinator",
+    role: "Appointment Coordinator",
     task: "Confirming delayed appointments and customer callbacks",
     status: "pending",
   },
   {
     name: "David Oshodi",
-    role: "Customer Support Desk",
+    role: "Customer Support",
     task: "Handling same-day service escalations",
     status: "in-progress",
   },
 ];
 
 export const priorityTasks: PriorityTask[] = [
-  { title: "Update teller rotation", due: "Due today", color: "blue" },
+  { title: "Update advisor rotation", due: "Due today", color: "blue" },
   { title: "Review no-show customers", due: "Due 11:45 AM", color: "teal" },
   { title: "Escalate delayed loan case", due: "Due 12:10 PM", color: "amber" },
-  { title: "Prepare end-of-day queue report", due: "Due 04:30 PM", color: "violet" },
+  { title: "Prepare end-of-day appointment report", due: "Due 04:30 PM", color: "violet" },
 ];

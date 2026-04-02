@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import type { BookingParams } from "@/shared/portal/booking-data";
 import { buildBookingsUrl, buildBranchesUrl, buildPortalUrl } from "@/shared/portal/booking-data";

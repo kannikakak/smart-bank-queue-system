@@ -14,6 +14,7 @@ Thumbs.db
 # Backend
 backend/target/
 backend/.mvn/
+backend/.smartq/
 
 # Frontend
 frontend/node_modules/

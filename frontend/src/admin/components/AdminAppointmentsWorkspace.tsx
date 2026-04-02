@@ -14,6 +14,7 @@ import {
   type AppointmentScheduleEntry,
   type CompletedAppointmentEntry,
 } from "@/admin/lib/workspace-data";
+import { getAdminAppointments, type AdminAppointmentSummary } from "@/shared/lib/api";
 
 type ViewMode = "list" | "calendar";
 type AppointmentStatus = AppointmentScheduleEntry["status"];
@@ -45,6 +46,18 @@ function createEmptyDraft(date = fallbackDate): AppointmentDraft {
     status: "scheduled",
     priority: false,
   };
+}
+
+function getLocalIsoDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseIsoDate(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
 }
 
 function toMinutes(time: string) {
@@ -84,7 +97,13 @@ function formatDateLabel(date: string) {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(new Date(`${date}T00:00:00`));
+  }).format(parseIsoDate(date));
+}
+
+function formatWeekdayLabel(date: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+  }).format(parseIsoDate(date));
 }
 
 function toDisplayTime(time: string) {
@@ -152,6 +171,91 @@ function getNextReference(active: AppointmentScheduleEntry[], completed: Complet
 
 function formatStatusLabel(status: AppointmentStatus) {
   return status === "checked-in" ? "Checked In" : "Scheduled";
+}
+
+function toIsoDate(value: string) {
+  return value.slice(0, 10);
+}
+
+function pickPreferredDate(
+  active: AppointmentScheduleEntry[],
+  completed: CompletedAppointmentEntry[],
+  preferredDate: string,
+) {
+  const availableDates = Array.from(
+    new Set([...active.map((item) => item.date), ...completed.map((item) => item.date)]),
+  ).sort((left, right) => left.localeCompare(right));
+
+  if (availableDates.includes(preferredDate)) {
+    return preferredDate;
+  }
+
+  return availableDates.find((date) => date >= preferredDate) ?? availableDates[0] ?? preferredDate;
+}
+
+function rebaseAppointmentEntries(date: string) {
+  return appointmentScheduleEntries.map((entry) => ({
+    ...entry,
+    date,
+  }));
+}
+
+function rebaseCompletedEntries(date: string) {
+  return completedAppointments.map((entry) => ({
+    ...entry,
+    date,
+  }));
+}
+
+function mapAdminAppointmentToScheduleEntry(
+  appointment: AdminAppointmentSummary,
+): AppointmentScheduleEntry {
+  return {
+    date: toIsoDate(appointment.scheduledAt),
+    time: toDisplayTime(
+      new Intl.DateTimeFormat("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(new Date(appointment.scheduledAt)),
+    ),
+    customer: appointment.customerName,
+    service: appointment.service,
+    status: appointment.status === "COMPLETED" ? "checked-in" : "scheduled",
+    reference: `A-${appointment.id}`,
+    email: appointment.customerEmail,
+    note: appointment.assignedStaff
+      ? `Assigned staff: ${appointment.assignedStaff}`
+      : "Awaiting staff assignment",
+    duration: `${Math.max(
+      15,
+      Math.round(
+        (new Date(appointment.endsAt).getTime() -
+          new Date(appointment.scheduledAt).getTime()) /
+          60000,
+      ),
+    )}m`,
+    priority: appointment.status === "WAITING" ? "priority" : undefined,
+  };
+}
+
+function mapAdminAppointmentToCompletedEntry(
+  appointment: AdminAppointmentSummary,
+): CompletedAppointmentEntry {
+  return {
+    reference: `A-${appointment.id}`,
+    date: toIsoDate(appointment.scheduledAt),
+    customer: appointment.customerName,
+    time: toDisplayTime(
+      new Intl.DateTimeFormat("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(new Date(appointment.scheduledAt)),
+    ),
+    service: appointment.service,
+    summaryLabel: "View Summary",
+  };
 }
 
 function SearchIcon() {
@@ -239,6 +343,7 @@ export function AdminAppointmentsWorkspace() {
   const [completed, setCompleted] = useState(() => sortCompleted(completedAppointments));
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedDate, setSelectedDate] = useState(fallbackDate);
+  const [currentDate, setCurrentDate] = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState<FilterStatus>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -251,6 +356,18 @@ export function AdminAppointmentsWorkspace() {
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
+    const today = getLocalIsoDate();
+    const todayAppointments = sortAppointments(rebaseAppointmentEntries(today));
+    const todayCompleted = sortCompleted(rebaseCompletedEntries(today));
+
+    setCurrentDate(today);
+    setAppointments(todayAppointments);
+    setCompleted(todayCompleted);
+    setSelectedDate(pickPreferredDate(todayAppointments, todayCompleted, today));
+    setDraft(createEmptyDraft(today));
+  }, []);
+
+  useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setIsComposerOpen(false);
@@ -260,6 +377,53 @@ export function AdminAppointmentsWorkspace() {
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAppointments() {
+      try {
+        const result = await getAdminAppointments();
+        const today = getLocalIsoDate();
+
+        const nextAppointments = sortAppointments(
+          result
+            .filter((appointment) => appointment.status !== "COMPLETED")
+            .map(mapAdminAppointmentToScheduleEntry),
+        );
+        const nextCompleted = sortCompleted(
+          result
+            .filter((appointment) => appointment.status === "COMPLETED")
+            .map(mapAdminAppointmentToCompletedEntry),
+        );
+
+        if (!isMounted) {
+          return;
+        }
+
+        setAppointments(nextAppointments);
+        setCompleted(nextCompleted);
+        setActivityNote("Live admin appointments loaded from the backend.");
+        setSelectedDate(pickPreferredDate(nextAppointments, nextCompleted, today));
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setActivityNote(
+          error instanceof Error && error.message
+            ? error.message
+            : "Using local appointment workspace data.",
+        );
+      }
+    }
+
+    void loadAppointments();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const services = Array.from(new Set(appointments.map((item) => item.service))).sort((left, right) =>
@@ -296,6 +460,13 @@ export function AdminAppointmentsWorkspace() {
   const nextAppointment = activeForDate[0];
   const nextSlot = nextAppointment?.time ?? "No slots";
   const priorityCount = activeForDate.filter((item) => item.priority === "priority").length;
+  const isCurrentDay = currentDate ? selectedDate === currentDate : true;
+  const spotlightLabel = isCurrentDay ? "Today" : "Selected Day";
+  const spotlightMessage = isCurrentDay
+    ? `${activeForDate.length} active appointments on the board.`
+    : `${activeForDate.length} appointments scheduled for this selected date.`;
+  const currentDateLabel = formatDateLabel(selectedDate);
+  const weekdayLabel = formatWeekdayLabel(selectedDate);
 
   function openCreate() {
     setEditingReference(null);
@@ -453,6 +624,21 @@ export function AdminAppointmentsWorkspace() {
             <p className="admin-appointments-kicker">Front Desk Schedule</p>
             <h2>Appointments</h2>
             <p>Manage walk-ins, scheduled service visits, and check-ins from one balanced workspace.</p>
+
+            <div className="admin-appointments-date-strip" aria-label="Active schedule date">
+              <div className="admin-appointments-date-badge">
+                <span>{spotlightLabel}</span>
+                <strong>{weekdayLabel}</strong>
+              </div>
+              <div className="admin-appointments-date-meta">
+                <strong>{currentDateLabel}</strong>
+                <p>
+                  {isCurrentDay
+                    ? "Synced to the current browser date for the live branch board."
+                    : "Viewing another day. Use the toolbar to return to today."}
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="admin-appointments-hero-metrics" aria-label="Daily schedule summary">
@@ -476,9 +662,12 @@ export function AdminAppointmentsWorkspace() {
 
         <div className="admin-appointments-spotlight">
           <div className="admin-appointments-spotlight-copy">
-            <span>Today</span>
-            <strong>{formatDateLabel(selectedDate)}</strong>
-            <p>{activeForDate.length} active appointments on the board.</p>
+            <div className="admin-appointments-spotlight-header">
+              <span className="admin-appointments-spotlight-pill">{spotlightLabel}</span>
+              <strong>{weekdayLabel}</strong>
+            </div>
+            <strong>{currentDateLabel}</strong>
+            <p>{spotlightMessage}</p>
           </div>
 
           <div className="admin-appointments-spotlight-grid">
@@ -510,7 +699,7 @@ export function AdminAppointmentsWorkspace() {
         <article className="admin-appointments-summary-card is-checked-in">
           <span>Checked In</span>
           <strong>{checkedInCount}</strong>
-          <p>Live queue ready</p>
+          <p>Ready for consultation</p>
         </article>
         <article className="admin-appointments-summary-card is-completed">
           <span>Completed</span>
@@ -572,6 +761,18 @@ export function AdminAppointmentsWorkspace() {
           </label>
 
           <div className="admin-appointments-toolbar-right">
+            <button
+              type="button"
+              className={`admin-appointments-today-button ${isCurrentDay ? "is-active" : ""}`.trim()}
+              onClick={() => {
+                const targetDate = currentDate ?? getLocalIsoDate();
+                setSelectedDate(targetDate);
+                setActivityNote("Jumped back to today's schedule.");
+              }}
+            >
+              {isCurrentDay ? "Viewing Today" : "Jump to Today"}
+            </button>
+
             <label className="admin-appointments-filter is-field">
               <CalendarIcon />
               <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
@@ -801,11 +1002,11 @@ export function AdminAppointmentsWorkspace() {
                 <p className="admin-composer-description">
                   {editingReference
                     ? "Refine the customer details, schedule, and service information for this visit."
-                    : "Add a new front-desk booking with the same structure used across the appointments workspace."}
+                    : "Add a new appointment with the same structure used across the appointments workspace."}
                 </p>
                 <div className="admin-composer-meta">
                   <span className="admin-composer-chip">
-                    {editingReference ? "Editing existing booking" : "New front-desk booking"}
+                    {editingReference ? "Editing existing booking" : "New appointment"}
                   </span>
                   <span className="admin-composer-chip is-accent">{formatDateLabel(draft.date)}</span>
                 </div>

@@ -6,6 +6,7 @@ export type BookingParams = {
   date?: string;
   time?: string;
   confirmed?: string;
+  appointmentId?: string;
 };
 
 export type BookingBranch = {
@@ -13,7 +14,7 @@ export type BookingBranch = {
   name: string;
   address: string;
   hours: string;
-  queue: string;
+  appointmentSupport: string;
   note: string;
 };
 
@@ -37,31 +38,31 @@ export const customerBranches: BookingBranch[] = [
     name: "Bokor Branch",
     address: "No721, Preah Monivong Blvd., Sangkat Boeng Keng Kang Ti Bei, Khan Boeng Keng Kang, Phnom Penh",
     hours: "08:00 - 20:00",
-    queue: "Full branch banking services",
-    note: "Official Wing Bank branch in Phnom Penh with full over-the-counter banking support.",
+    appointmentSupport: "Full-service appointment and advisor support",
+    note: "Official Wing Bank branch in Phnom Penh with advisor-led consultations and document support.",
   },
   {
     id: "aeon-mean-chey",
     name: "AEON Mall Mean Chey Branch",
     address: "Unit F027, 1st Floor, Hun Sen Blvd, Sangkat Chak Angrae Kraom, Khan Mean Chey, Phnom Penh",
     hours: "09:00 - 21:00",
-    queue: "Open daily branch services",
-    note: "Official Wing Bank branch inside AEON Mall Mean Chey with seven-day opening hours.",
+    appointmentSupport: "Daily branch appointments and quick assistance",
+    note: "Official Wing Bank branch inside AEON Mall Mean Chey with seven-day advisor availability.",
   },
   {
     id: "head-office",
     name: "Head Office",
     address: "Wing Tower Building, Preah Monivong Blvd corner Kampuchea Krom, Sangkat Monourom, Khan Prampir Meakkakra, Phnom Penh",
     hours: "08:00 - 20:00",
-    queue: "Head office branch services",
-    note: "Wing Bank head office in Phnom Penh listed on the official branch directory.",
+    appointmentSupport: "Head-office consultations and specialist support",
+    note: "Wing Bank head office in Phnom Penh with broader consultation coverage.",
   },
   {
     id: "orkide-2004",
     name: "Orkide 2004 Branch",
     address: "Building SHR1#35, Street 2004, Orchide Village, Sangkat Ou Baek K'am, Khan Saensokh, Phnom Penh",
     hours: "08:00 - 20:00",
-    queue: "Full branch banking services",
+    appointmentSupport: "Account, loan, and branch advisory appointments",
     note: "Official Wing Bank branch along Street 2004 in Phnom Penh.",
   },
   {
@@ -69,7 +70,7 @@ export const customerBranches: BookingBranch[] = [
     name: "Phnom Penh Special Economic Zone Branch",
     address: "No. 115, 117 and 119, Street No.1, Trapeang Kol Village, Sangkat Kantaok, Khan Kamboul, Phnom Penh",
     hours: "08:00 - 20:00",
-    queue: "Business and payroll branch services",
+    appointmentSupport: "Business, payroll, and employer support visits",
     note: "Official Wing Bank branch serving customers in Phnom Penh Special Economic Zone.",
   },
   {
@@ -77,7 +78,7 @@ export const customerBranches: BookingBranch[] = [
     name: "Wat Phnom Branch",
     address: "No. 246, E0, Street Monivong Blvd, Sangkat Boeng Reang, Khan Daun Penh, Phnom Penh",
     hours: "08:00 - 16:00",
-    queue: "Branch and self-banking access",
+    appointmentSupport: "Branch appointments with self-service guidance",
     note: "Official Wing Bank city branch with published branch and ATM/CRM presence.",
   },
   {
@@ -85,7 +86,7 @@ export const customerBranches: BookingBranch[] = [
     name: "Tuol Kouk Branch",
     address: "#22, Street N289, Sangkat Boeng Kak Ti Muoy, Khan Tuol Kouk, Phnom Penh",
     hours: "08:00 - 16:00",
-    queue: "Branch and self-banking access",
+    appointmentSupport: "Branch appointments with self-service guidance",
     note: "Official Wing Bank Tuol Kouk branch listed on the public branch directory.",
   },
   {
@@ -93,7 +94,7 @@ export const customerBranches: BookingBranch[] = [
     name: "Saensokh Branch",
     address: "No 9, 10, 11, 12A & 12B, Street No 1003, Sangkat Phnom Penh Thmei, Khan Saensokh, Phnom Penh",
     hours: "08:00 - 16:00",
-    queue: "Branch and self-banking access",
+    appointmentSupport: "Branch appointments with self-service guidance",
     note: "Official Wing Bank Saensokh branch with published branch and ATM/CRM access.",
   },
   {
@@ -101,7 +102,7 @@ export const customerBranches: BookingBranch[] = [
     name: "Preah Yukunthor Branch",
     address: "Building 99, 101 and 103, Preah Sihanouk Blvd, Sangkat Boeng Proluet, Khan Prampir Meakkakra, Phnom Penh",
     hours: "08:00 - 16:00",
-    queue: "Branch and self-banking access",
+    appointmentSupport: "Branch appointments with self-service guidance",
     note: "Official Wing Bank Preah Yukunthor branch in Phnom Penh.",
   },
   {
@@ -109,7 +110,7 @@ export const customerBranches: BookingBranch[] = [
     name: "Independence Monument Branch",
     address: "No 130 E0 E1 E2, Preah Sihanouk Blvd (274), Sangkat Boeng Keng Kang Ti Muoy, Khan Boeng Keng Kang, Phnom Penh",
     hours: "08:00 - 16:00",
-    queue: "Branch and self-banking access",
+    appointmentSupport: "Appointments, branch support, and self-service guidance",
     note: "Official Wing Bank branch near Independence Monument with branch and self-service facilities.",
   },
   {
@@ -117,7 +118,7 @@ export const customerBranches: BookingBranch[] = [
     name: "Boeng Trabaek Branch",
     address: "Building No. 759 and 761, Monivong Blvd, corner Street 432, Sangkat Boeng Trabaek, Khan Chamkar Mon, Phnom Penh",
     hours: "08:00 - 16:00",
-    queue: "Main branch customer services",
+    appointmentSupport: "Main branch customer consultations",
     note: "Official Wing Bank branch along Monivong Blvd in Boeng Trabaek.",
   },
   {
@@ -125,7 +126,7 @@ export const customerBranches: BookingBranch[] = [
     name: "Tuek Thla Branch",
     address: "No 99, Russian Federation Blvd, Sangkat Tuek Thla, Khan Saensokh, Phnom Penh",
     hours: "08:00 - 16:00",
-    queue: "Branch and self-banking access",
+    appointmentSupport: "Branch appointments with self-service guidance",
     note: "Official Wing Bank Tuek Thla branch in Phnom Penh.",
   },
   {
@@ -133,7 +134,7 @@ export const customerBranches: BookingBranch[] = [
     name: "National Social Security Fund Branch",
     address: "NSSF Building, Ground Floor, NSSF-G03, Sangkat Khmounh, Khan Saensokh, Phnom Penh",
     hours: "08:00 - 16:00",
-    queue: "Branch service point",
+    appointmentSupport: "Branch appointment service point",
     note: "Official Wing Bank branch at the National Social Security Fund building in Phnom Penh.",
   },
   {
@@ -141,7 +142,7 @@ export const customerBranches: BookingBranch[] = [
     name: "Chrouy Changvar Branch",
     address: "GDT Tower, OCIC Blvd. corner Damrei Srot Street, Sangkat Chrouy Changvar, Khan Chrouy Changvar, Phnom Penh",
     hours: "08:00 - 16:00",
-    queue: "Full branch banking services",
+    appointmentSupport: "Full-service appointment and advisor support",
     note: "Official Wing Bank Chrouy Changvar branch at GDT Tower in Phnom Penh.",
   },
 ];
@@ -151,7 +152,7 @@ export const bookingServices: BookingService[] = [
     id: "account",
     title: "Savings / Current Account Opening",
     duration: "20 min",
-    availability: "Branch counter service",
+    availability: "Advisor-led appointment",
     description: "Open a Wing Bank savings or current account and get help with account setup.",
   },
   {
@@ -165,7 +166,7 @@ export const bookingServices: BookingService[] = [
     id: "card",
     title: "Debit / Card Services",
     duration: "30 min",
-    availability: "Card support desk",
+    availability: "Card support appointment",
     description: "Apply for or get help with Wing Bank debit cards, CSS cards, and card-related support.",
   },
   {
@@ -211,6 +212,10 @@ export function buildPortalUrl(
     search.set("confirmed", params.confirmed);
   }
 
+  if (params.appointmentId) {
+    search.set("appointmentId", params.appointmentId);
+  }
+
   return `/portal?${search.toString()}${hash ? `#${hash}` : ""}`;
 }
 
@@ -250,6 +255,10 @@ export function buildBranchesUrl(
     search.set("confirmed", params.confirmed);
   }
 
+  if (params.appointmentId) {
+    search.set("appointmentId", params.appointmentId);
+  }
+
   return `/portal/branches?${search.toString()}${hash ? `#${hash}` : ""}`;
 }
 
@@ -277,6 +286,10 @@ export function buildBookingsUrl(
 
   if (params.confirmed) {
     search.set("confirmed", params.confirmed);
+  }
+
+  if (params.appointmentId) {
+    search.set("appointmentId", params.appointmentId);
   }
 
   return `/portal/bookings?${search.toString()}`;
@@ -343,10 +356,18 @@ export function getTimeSlots(serviceId?: string, branchId?: string) {
 }
 
 export function getBookingSelection(params?: BookingParams) {
+  return getBookingSelectionWithData(params, customerBranches, bookingServices);
+}
+
+export function getBookingSelectionWithData(
+  params: BookingParams | undefined,
+  branches: BookingBranch[],
+  services: BookingService[],
+) {
   const dateOptions = getDateOptions();
-  const selectedBranch = customerBranches.find((branch) => branch.id === params?.branch);
+  const selectedBranch = branches.find((branch) => branch.id === params?.branch);
   const selectedService = selectedBranch
-    ? bookingServices.find((service) => service.id === params?.service)
+    ? services.find((service) => service.id === params?.service)
     : undefined;
   const selectedDate =
     selectedBranch && selectedService

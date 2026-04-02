@@ -1,5 +1,6 @@
 package com.smartq.api.appointment.controller;
 
+import com.smartq.api.appointment.dto.AvailableSlotSummary;
 import com.smartq.api.appointment.dto.AppointmentDetail;
 import com.smartq.api.appointment.dto.AppointmentSummary;
 import com.smartq.api.appointment.dto.AppointmentTimelineEvent;
@@ -8,12 +9,14 @@ import com.smartq.api.appointment.dto.RescheduleAppointmentRequest;
 import com.smartq.api.appointment.repository.AppointmentRepository;
 import com.smartq.api.appointment.service.CustomerAppointmentService;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -60,6 +63,15 @@ public class CustomerAppointmentController {
         Authentication authentication
     ) {
         return customerAppointmentService.getAppointmentTimeline(authentication.getName(), appointmentId);
+    }
+
+    @GetMapping("/availability")
+    public List<AvailableSlotSummary> availability(
+        @RequestParam Long branchId,
+        @RequestParam Long serviceId,
+        @RequestParam LocalDate date
+    ) {
+        return customerAppointmentService.getAvailableSlots(branchId, serviceId, date);
     }
 
     @PostMapping

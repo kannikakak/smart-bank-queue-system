@@ -12,6 +12,12 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
 
     List<Appointment> findByBranch_IdInOrderByStartTimeAsc(List<Long> branchIds);
 
+    List<Appointment> findByBranch_IdAndStartTimeGreaterThanEqualAndStartTimeLessThanOrderByStartTimeAsc(
+        Long branchId,
+        LocalDateTime dayStart,
+        LocalDateTime dayEnd
+    );
+
     List<Appointment> findByCustomer_EmailIgnoreCaseOrderByStartTimeAsc(String email);
 
     boolean existsByBranch_IdAndStartTimeLessThanAndEndTimeGreaterThan(

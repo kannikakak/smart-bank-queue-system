@@ -1,4 +1,5 @@
 type MetricCardProps = {
+  label?: string;
   title: string;
   description: string;
 };
@@ -14,13 +15,18 @@ function ShieldIcon() {
   );
 }
 
-export function MetricCard({ title, description }: MetricCardProps) {
+export function MetricCard({
+  label = "Security",
+  title,
+  description,
+}: MetricCardProps) {
   return (
     <article className="security-card" role="article" aria-label="Security feature">
       <div className="security-icon" aria-hidden="true">
         <ShieldIcon />
       </div>
       <div>
+        <p className="security-card-label">{label}</p>
         <h3>{title}</h3>
         <p>{description}</p>
       </div>

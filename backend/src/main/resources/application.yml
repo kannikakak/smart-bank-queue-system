@@ -7,9 +7,10 @@ spring:
   application:
     name: smartq-backend
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:6543/smartq}
-    username: ${SPRING_DATASOURCE_USERNAME:smartq}
-    password: ${SPRING_DATASOURCE_PASSWORD:smartq}
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:file:./.smartq/devdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.h2.Driver}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
   jpa:
     hibernate:
       ddl-auto: validate

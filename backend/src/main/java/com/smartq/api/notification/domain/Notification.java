@@ -102,4 +102,8 @@ public class Notification {
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
+
+    public void updateStatus(String status) {
+        this.status = status;
+    }
 }
