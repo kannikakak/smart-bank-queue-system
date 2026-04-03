@@ -57,6 +57,8 @@ This repository also keeps Railway support for the backend through `backend/Dock
 
 See `docs/deployment.md` for the exact deployment steps, required environment variables, and GitHub Actions secrets.
 
+The backend now also accepts Render-style Postgres URLs such as `postgresql://...` and converts them automatically for Spring Boot.
+
 ## Demo Credentials
 
 These are seeded into the database on first startup:
