@@ -124,14 +124,14 @@ function SearchIcon() {
 const navigationItems = [
   {
     id: "dashboard",
-    label: "Dashboard",
-    description: "KPIs and branch load",
+    label: "Overview",
+    description: "Performance and branch load",
     href: "/portal?role=admin",
     icon: <DashboardIcon />,
   },
   {
     id: "appointments",
-    label: "Schedule",
+    label: "Appointments",
     description: "Bookings and arrivals",
     href: "/portal/branches?role=admin",
     icon: <CalendarIcon />,
@@ -139,13 +139,13 @@ const navigationItems = [
   {
     id: "queue",
     label: "Consultations",
-    description: "Live queue board",
+    description: "Live queue handoff",
     href: "/portal/bookings?role=admin",
     icon: <QueueIcon />,
   },
   {
     id: "transactions",
-    label: "Transactions",
+    label: "Operations",
     description: "Reviews and exceptions",
     href: "/portal?role=admin&section=transactions",
     icon: <ReceiptIcon />,
@@ -170,11 +170,11 @@ const supportItems = [
 ] as const;
 
 const workspaceTitles: Record<AdminWorkspaceShellProps["activeItem"], string> = {
-  dashboard: "Performance Dashboard",
-  appointments: "Schedule Management",
+  dashboard: "Analytics Overview",
+  appointments: "Appointments",
   queue: "Consultation Board",
-  transactions: "Transaction Oversight",
-  settings: "Experience Settings",
+  transactions: "Operations Center",
+  settings: "Service Configuration",
   help: "Support Center",
 };
 
@@ -238,6 +238,14 @@ function formatStoredRoleLabel(role: string | null) {
   }
 
   return `${role.charAt(0).toUpperCase()}${role.slice(1)} account`;
+}
+
+function formatBranchOfficeLabel(branch: BranchSummary | null) {
+  if (!branch) {
+    return "HQ-Office-00";
+  }
+
+  return `HQ-Office-${String(branch.id).padStart(2, "0")}`;
 }
 
 export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShellProps) {
@@ -413,10 +421,10 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
             <span className="admin-brand-mark" aria-hidden="true">
               <LogoIcon />
             </span>
-          <div className="admin-brand-copy">
-              <strong>SmartQ Admin</strong>
-              <p>Operations console</p>
-          </div>
+            <div className="admin-brand-copy">
+              <strong>SmartQ</strong>
+              <p>Enterprise Hub</p>
+            </div>
           </div>
 
           <div className="admin-sidebar-group">
@@ -477,10 +485,10 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
 
           <div className="admin-sidebar-action-card">
             <span className="admin-sidebar-label">Quick action</span>
-            <strong>{workspaceTitles[activeItem]}</strong>
+            <strong>{workspaceActions[activeItem].label}</strong>
             <p>{workspaceActions[activeItem].note}</p>
             <Link href={workspaceActions[activeItem].href} className="admin-sidebar-action-link">
-              {workspaceActions[activeItem].label}
+              Open Workspace
             </Link>
           </div>
         </div>
@@ -511,6 +519,10 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
             </div>
           </div>
 
+          <Link href={workspaceActions[activeItem].href} className="admin-sidebar-footer-link">
+            {workspaceActions[activeItem].label}
+          </Link>
+
           <button
             type="button"
             className="admin-logout-button"
@@ -526,20 +538,16 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
         <header className="admin-topbar">
           <div className="admin-topbar-context">
             <span>Workspace</span>
-            <strong>{workspaceTitles[activeItem]}</strong>
-            <p>{workspaceDescriptions[activeItem]}</p>
+            <strong>Branch Management</strong>
+            <p>{workspaceTitles[activeItem]}</p>
           </div>
 
           <div className="admin-topbar-actions">
-            <span className="admin-topbar-pill">
-              {primaryBranch ? primaryBranch.name : "Live branch sync"}
-            </span>
-
             <label className="admin-search-field">
               <SearchIcon />
               <input
                 type="search"
-                placeholder="Search bookings, services, staff..."
+                placeholder="Search analytics, appointments, or staff..."
                 aria-label="Search admin workspace data"
               />
             </label>
@@ -556,18 +564,27 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
               ) : null}
             </button>
 
-            <button type="button" className="admin-icon-button" aria-label="Settings">
-              <SettingsIcon />
+            <button type="button" className="admin-icon-button" aria-label="Help">
+              <HelpIcon />
             </button>
 
-            <button
-              type="button"
-              className="admin-profile-avatar admin-profile-avatar-button"
-              aria-label={`${displayName} profile`}
-              title={displayName}
-            >
-              {getInitials(displayName)}
-            </button>
+            <span className="admin-topbar-divider" aria-hidden="true" />
+
+            <div className="admin-topbar-user">
+              <div className="admin-topbar-user-copy">
+                <strong>{displayName}</strong>
+                <span>{primaryBranch ? formatBranchOfficeLabel(primaryBranch) : workspaceDescriptions[activeItem]}</span>
+              </div>
+
+              <button
+                type="button"
+                className="admin-profile-avatar admin-profile-avatar-button"
+                aria-label={`${displayName} profile`}
+                title={displayName}
+              >
+                {getInitials(displayName)}
+              </button>
+            </div>
           </div>
 
           {isNotificationsOpen ? (

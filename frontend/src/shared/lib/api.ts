@@ -1,5 +1,12 @@
-const apiBaseUrl =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const defaultApiBaseUrl = "http://localhost:8080";
+
+function normalizeApiBaseUrl(value: string) {
+  return value.endsWith("/") ? value.slice(0, -1) : value;
+}
+
+const apiBaseUrl = normalizeApiBaseUrl(
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? defaultApiBaseUrl,
+);
 
 const ACCESS_TOKEN_KEY = "smartq.accessToken";
 const ROLE_STORAGE_KEY = "smartq.role";
@@ -169,7 +176,7 @@ async function apiRequest<T>(path: string, options: ApiRequestOptions = {}) {
     });
   } catch {
     throw new Error(
-      "Backend is not reachable at http://localhost:8080. Start the Spring Boot server first.",
+      `Backend is not reachable at ${apiBaseUrl}. Check NEXT_PUBLIC_API_BASE_URL and make sure the Spring Boot server is running.`,
     );
   }
 

@@ -324,14 +324,6 @@ function ChevronDownIcon() {
   );
 }
 
-function MoreIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M5 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm7 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z" fill="currentColor" />
-    </svg>
-  );
-}
-
 function WaitMetricIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -390,18 +382,6 @@ function MetricIcon({ icon }: { icon: "wait" | "volume" | "service" | "peak" }) 
   }
 
   return <WaitMetricIcon />;
-}
-
-function RatingStars({ value }: { value: number }) {
-  return (
-    <div className="admin-service-rating" aria-label={`${value} out of 5 stars`}>
-      {Array.from({ length: 5 }, (_, index) => (
-        <span key={index} className={index < value ? "is-filled" : ""}>
-          {"\u2605"}
-        </span>
-      ))}
-    </div>
-  );
 }
 
 function parseHighlightDetail(line: string) {
@@ -553,9 +533,6 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>("30d");
   const [selectedService, setSelectedService] = useState<ServiceFilter>("all");
   const [selectedDemandView, setSelectedDemandView] = useState<DemandView>("today");
-  const [tableFilter, setTableFilter] = useState<"all" | "top-rated">("all");
-  const [showStaffColumn, setShowStaffColumn] = useState(true);
-  const [showTopPerformersOnly, setShowTopPerformersOnly] = useState(false);
   const [actionMessage, setActionMessage] = useState("Dashboard filters are live.");
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [appointments, setAppointments] = useState<AdminAppointmentSummary[]>([]);
@@ -573,7 +550,7 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
       : isHelp
         ? "help"
         : "queue";
-  const secondaryContent = secondaryWorkspaceContent[secondaryFocus];
+  const baseSecondaryContent = secondaryWorkspaceContent[secondaryFocus];
 
   useEffect(() => {
     let isMounted = true;
@@ -717,28 +694,15 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
   const todayAppointments = mapAdminAppointmentsToTodayAppointments(appointments);
   const baseDemandBars = buildDemandBarsFromAppointments(appointments);
   const visibleServicesBase = servicePerformanceEntries.filter((entry) => matchesService(entry.service, selectedService));
-  const visibleServices =
-    tableFilter === "top-rated"
-      ? visibleServicesBase.filter((entry) => entry.satisfaction >= 5)
-      : visibleServicesBase;
   const demandBars = buildDemandBars(baseDemandBars, selectedPeriod, selectedService, selectedDemandView);
   const visibleStaffNames = Array.from(new Set(visibleServicesBase.flatMap((entry) => entry.staffAssigned)));
   const staffPool = staffEfficiencyEntries.filter((entry) => visibleStaffNames.includes(entry.name));
-  const staffEntries = (staffPool.length > 0 ? staffPool : staffEfficiencyEntries).slice(
-    0,
-    showTopPerformersOnly ? 3 : undefined,
-  );
+  const staffEntries = (staffPool.length > 0 ? staffPool : staffEfficiencyEntries).slice(0, 3);
 
   const totalTickets = visibleServicesBase.reduce((total, entry) => total + entry.tickets, 0);
   const averageWait = visibleServicesBase.length
     ? visibleServicesBase.reduce((total, entry) => total + parseMinutes(entry.avgWait), 0) / visibleServicesBase.length
     : 12;
-  const averageDuration = visibleServicesBase.length
-    ? visibleServicesBase.reduce((total, entry) => total + parseMinutes(entry.avgDuration), 0) /
-      visibleServicesBase.length /
-      3
-    : 8;
-
   const periodVolumeMultiplier: Record<PeriodFilter, number> = {
     "7d": 8.4,
     "30d": 10.4,
@@ -754,49 +718,175 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
   const peakHoursLabel = getPeakHoursLabel(demandBars);
   const waitMinutes = clamp(Math.round(averageWait + (selectedPeriod === "90d" ? 1 : selectedPeriod === "7d" ? -1 : 0)), 8, 22);
   const waitSeconds = selectedService === "loans" ? 50 : selectedService === "accounts" ? 25 : 20;
-  const serviceMinutes = clamp(Math.round(averageDuration), 5, 16);
-  const serviceSeconds = selectedService === "transfers" ? 15 : selectedService === "cards" ? 30 : 45;
   const customerVolume = Math.round(totalTickets * periodVolumeMultiplier[selectedPeriod]);
-  const dashboardMetrics = [
+  const selectedPeriodLabel =
+    periodOptions.find((option) => option.value === selectedPeriod)?.label ?? "Last 30 Days";
+  const selectedServiceLabel =
+    serviceOptions.find((option) => option.value === selectedService)?.label ?? "All Services";
+  const queueItems = liveQueueEntries.slice(0, 4);
+  const arrivalItems = todayAppointments.slice(0, 4);
+  const serviceRows = visibleServicesBase.slice(0, 4);
+  const queueAlertCount = queueItems.filter((item) => item.status === "waiting").length;
+  const nextArrival = arrivalItems[0];
+  const activeQueueAppointment =
+    appointments.find(
+      (appointment) =>
+        appointment.status !== "WAITING" && appointment.status !== "COMPLETED",
+    ) ??
+    appointments.find((appointment) => appointment.status === "WAITING") ??
+    appointments[0];
+  const queueWorkspaceContent =
+    activeQueueAppointment
+      ? {
+          ...secondaryWorkspaceContent.queue,
+          pageDescription:
+            queueAlertCount > 0
+              ? `${queueAlertCount} waiting and ${Math.max(queueItems.length - queueAlertCount, 0)} active on the live queue.`
+              : "Live queue and handoff status.",
+          sideTitle: queueAlertCount > 0 ? "Upcoming Consultations" : "Consultation Queue",
+          servingTitle: `A-${activeQueueAppointment.id}: ${activeQueueAppointment.customerName}`,
+          servingLines: [
+            `Service: ${activeQueueAppointment.service}`,
+            `Branch: ${activeQueueAppointment.branch}`,
+            `${activeQueueAppointment.status === "WAITING" ? "Scheduled" : "Started"}: ${formatTimeLabel(activeQueueAppointment.scheduledAt)}`,
+            `Staff: ${activeQueueAppointment.assignedStaff ?? "Unassigned"}`,
+          ],
+          highlightKicker:
+            activeQueueAppointment.status === "WAITING"
+              ? "Up Next"
+              : activeQueueAppointment.status === "COMPLETED"
+                ? "Recently Closed"
+                : "In Consultation",
+          metaTags: [
+            activeQueueAppointment.branch,
+            activeQueueAppointment.assignedStaff ?? "Unassigned",
+            activeQueueAppointment.status === "WAITING"
+              ? "Arrival pending"
+              : activeQueueAppointment.status === "COMPLETED"
+                ? "Completed"
+                : "In service",
+          ],
+          actionNote:
+            activeQueueAppointment.status === "WAITING"
+              ? "Prepare the branch team before calling this customer."
+              : activeQueueAppointment.status === "COMPLETED"
+                ? "Review the completed consultation and prepare the next arrival."
+                : "Close the active consultation before calling the next customer.",
+          primaryAction:
+            activeQueueAppointment.status === "WAITING"
+              ? "Prepare Consultation"
+              : activeQueueAppointment.status === "COMPLETED"
+                ? "Review Summary"
+                : "Complete Consultation",
+          secondaryAction:
+            activeQueueAppointment.status === "WAITING" ? "Notify Customer" : "Flag Follow-Up",
+        }
+      : secondaryWorkspaceContent.queue;
+  const secondaryContent =
+    secondaryFocus === "queue" ? queueWorkspaceContent : baseSecondaryContent;
+  const overviewCards = [
     {
-      label: "Avg. Wait Time",
-      value: formatMinutesAndSeconds(waitMinutes, waitSeconds),
-      delta: selectedPeriod === "7d" ? "-9% vs last week" : selectedPeriod === "90d" ? "+4% vs last month" : "-12% vs last week",
-      deltaTone: selectedPeriod === "90d" ? ("neutral" as const) : ("positive" as const),
-      icon: "wait" as const,
-    },
-    {
-      label: "Daily Customer Volume",
+      label: "Total Today",
       value: customerVolume.toLocaleString(),
       delta: periodDeltaLabels[selectedPeriod],
       deltaTone: "positive" as const,
       icon: "volume" as const,
+      note: `${selectedServiceLabel} across ${activeBranchesCount || 1} active branches.`,
     },
     {
-      label: "Avg. Service Time",
-      value: formatMinutesAndSeconds(serviceMinutes, serviceSeconds),
-      delta: showTopPerformersOnly ? "Top staff view" : "Stable",
-      deltaTone: "neutral" as const,
-      icon: "service" as const,
-    },
-    {
-      label: "Peak Hours Today",
+      label: "Peak Hours",
       value: peakHoursLabel,
-      delta: selectedDemandView === "peak" ? "Peak focus" : "Alert",
-      deltaTone: "alert" as const,
+      delta: "Predicted",
+      deltaTone: "neutral" as const,
       icon: "peak" as const,
+      note: `${Math.max(queueAlertCount, 1)} attention points around the peak window.`,
+    },
+    {
+      label: "Avg Wait Time",
+      value: formatMinutesAndSeconds(waitMinutes, waitSeconds),
+      delta: queueAlertCount > 0 ? `+${queueAlertCount}m` : "Stable",
+      deltaTone: queueAlertCount > 0 ? ("alert" as const) : ("neutral" as const),
+      icon: "wait" as const,
+      note: `${waitingAppointmentsCount} customers are currently waiting.`,
+    },
+    {
+      label: "Active Staff",
+      value: `${activeStaffCount} / ${Math.max(activeStaffCount + 6, activeStaffCount || 8)}`,
+      delta: primaryServiceStatus(serviceRows),
+      deltaTone: "positive" as const,
+      icon: "service" as const,
+      note: `${activeServicesCount} services are currently configured.`,
     },
   ];
-  const queueItems = liveQueueEntries.slice(0, 4);
-  const arrivalItems = todayAppointments.slice(0, 4);
-  const serviceRows = visibleServices.slice(0, 5);
-  const queueAlertCount = queueItems.filter((item) => item.status === "waiting").length;
-  const nextArrival = arrivalItems[0];
+  const efficiencyScore = clamp(
+    Math.round(84 + activeStaffCount * 0.22 + completedAppointmentsCount * 1.4 - queueAlertCount * 3.2),
+    72,
+    98,
+  );
+  const efficiencySummary =
+    efficiencyScore >= 92
+      ? `Operating ${Math.max(efficiencyScore - 86, 1)}.${queueAlertCount} points above target for the selected period.`
+      : queueAlertCount > 0
+        ? `Queue pressure is rising near ${peakHoursLabel}. Rebalance staff before the next handoff.`
+        : "Demand is balanced and on track for the current reporting window.";
+  const serviceLoadRows = serviceRows.map((entry) => {
+    const adjustedTickets = Math.round(
+      entry.tickets * (selectedPeriod === "7d" ? 0.8 : selectedPeriod === "90d" ? 1.22 : 1),
+    );
+
+    return {
+      service: entry.service,
+      tickets: adjustedTickets,
+      level: adjustedTickets >= 4 ? "High" : adjustedTickets >= 2 ? "Normal" : "Low",
+    };
+  });
+  const enterpriseAlerts = [
+    {
+      title: "Trend Alert",
+      detail: `${selectedServiceLabel} demand is strongest around ${peakHoursLabel}.`,
+    },
+    {
+      title: "Staff Notice",
+      detail:
+        staffEntries[0]
+          ? `${staffEntries[0].name} is leading the visible team at ${staffEntries[0].score}% efficiency.`
+          : "No staff activity is visible for this service filter.",
+    },
+    {
+      title: "SLA Risk",
+      detail:
+        nextArrival && queueAlertCount > 0
+          ? `${nextArrival.customer} is the next arrival and needs follow-up before the slot begins.`
+          : "No immediate SLA breach is visible on the board.",
+    },
+  ];
   const compactSummaryItems = [
     { label: "Branches", value: String(activeBranchesCount) },
     { label: "Waiting", value: String(waitingAppointmentsCount) },
     { label: "Completed", value: String(completedAppointmentsCount) },
   ];
+
+  function primaryServiceStatus(rows: typeof serviceRows) {
+    if (rows.length === 0) {
+      return "Standby";
+    }
+
+    return rows[0].tickets >= 3 ? "Online" : "Ready";
+  }
+
+  function getDemandViewButtonLabel(view: DemandView) {
+    if (view === "today") {
+      return "Daily";
+    }
+
+    if (view === "weekday") {
+      return "Hourly";
+    }
+
+    return "Peak";
+  }
+
+  const demandViewButtonSet: DemandView[] = ["today", "weekday", "peak"];
 
   function handleExport() {
     const headings = [
@@ -805,15 +895,15 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
       "avg_wait",
       "avg_duration",
       "satisfaction",
-      ...(showStaffColumn ? ["staff_assigned"] : []),
+      "staff_assigned",
     ];
-    const rows = visibleServices.map((entry) => [
+    const rows = visibleServicesBase.map((entry) => [
       entry.service,
       String(entry.tickets),
       entry.avgWait,
       entry.avgDuration,
       `${entry.satisfaction}/5`,
-      ...(showStaffColumn ? [entry.staffAssigned.join(" | ")] : []),
+      entry.staffAssigned.join(" | "),
     ]);
     const csv = [headings.join(","), ...rows.map((row) => row.map((item) => `"${item}"`).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -825,22 +915,25 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    setActionMessage(`Exported ${visibleServices.length} rows for ${serviceOptions.find((option) => option.value === selectedService)?.label}.`);
+    setActionMessage(`Exported ${visibleServicesBase.length} rows for ${serviceOptions.find((option) => option.value === selectedService)?.label}.`);
   }
 
   if (isDashboard) {
     return (
-      <section className="admin-system-page">
+      <section className="admin-system-page admin-enterprise-page">
         {loadError ? (
           <p className="auth-error-message" aria-live="polite">
             {loadError}
           </p>
         ) : null}
 
-        <header className="admin-system-hero">
-          <div className="admin-system-hero-copy">
-            <p className="admin-system-kicker">Operations</p>
-            <h2>Dashboard</h2>
+        <header className="admin-enterprise-hero">
+          <div className="admin-enterprise-hero-copy">
+            <p className="admin-system-kicker">Overview</p>
+            <h2>Analytics Pulse</h2>
+            <p className="admin-system-hero-description">
+              Real-time performance monitoring across all branch service points for {selectedServiceLabel.toLowerCase()} over {selectedPeriodLabel.toLowerCase()}.
+            </p>
             <div className="admin-system-inline-stats" aria-label="Dashboard summary">
               {compactSummaryItems.map((item) => (
                 <span key={item.label}>
@@ -851,101 +944,106 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
             </div>
           </div>
 
-          <div className="admin-system-controls">
-            <div className="admin-analytics-hero-actions">
-              <label className="admin-analytics-filter">
-                <CalendarIcon />
-                <select
-                  className="admin-analytics-filter-select"
-                  value={selectedPeriod}
-                  onChange={(event) => {
-                    const value = event.target.value as PeriodFilter;
-                    setSelectedPeriod(value);
-                    setActionMessage(
-                      `Period: ${periodOptions.find((option) => option.value === value)?.label}.`,
-                    );
-                  }}
-                >
-                  {periodOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDownIcon />
-              </label>
+          <div className="admin-enterprise-hero-actions">
+            <label className="admin-analytics-filter">
+              <CalendarIcon />
+              <select
+                className="admin-analytics-filter-select"
+                value={selectedPeriod}
+                onChange={(event) => {
+                  const value = event.target.value as PeriodFilter;
+                  setSelectedPeriod(value);
+                  setActionMessage(
+                    `Period: ${periodOptions.find((option) => option.value === value)?.label}.`,
+                  );
+                }}
+              >
+                {periodOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDownIcon />
+            </label>
 
-              <label className="admin-analytics-filter">
-                <FilterIcon />
-                <select
-                  className="admin-analytics-filter-select"
-                  value={selectedService}
-                  onChange={(event) => {
-                    const value = event.target.value as ServiceFilter;
-                    setSelectedService(value);
-                    setActionMessage(
-                      `Service: ${serviceOptions.find((option) => option.value === value)?.label}.`,
-                    );
-                  }}
-                >
-                  {serviceOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDownIcon />
-              </label>
+            <label className="admin-analytics-filter">
+              <FilterIcon />
+              <select
+                className="admin-analytics-filter-select"
+                value={selectedService}
+                onChange={(event) => {
+                  const value = event.target.value as ServiceFilter;
+                  setSelectedService(value);
+                  setActionMessage(
+                    `Service: ${serviceOptions.find((option) => option.value === value)?.label}.`,
+                  );
+                }}
+              >
+                {serviceOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDownIcon />
+            </label>
 
-              <button type="button" className="admin-analytics-export" onClick={handleExport}>
-                <DownloadIcon />
-                <span>Export</span>
-              </button>
-            </div>
+            <button type="button" className="admin-analytics-export" onClick={handleExport}>
+              <DownloadIcon />
+              <span>Export</span>
+            </button>
           </div>
         </header>
 
-        <section className="admin-system-metrics-grid" aria-label="Performance summary">
-          {dashboardMetrics.map((metric) => (
-            <article key={metric.label} className="admin-system-metric-card">
-              <div className="admin-system-metric-top">
-                <span className="admin-system-metric-icon" aria-hidden="true">
+        <section className="admin-enterprise-metrics-grid" aria-label="Performance summary">
+          {overviewCards.map((metric) => (
+            <article key={metric.label} className="admin-enterprise-metric-card">
+              <div className="admin-enterprise-metric-top">
+                <span className={`admin-enterprise-icon is-${metric.icon}`.trim()} aria-hidden="true">
                   <MetricIcon icon={metric.icon} />
                 </span>
                 <span className={`admin-analytics-pill is-${metric.deltaTone}`.trim()}>
                   {metric.delta}
                 </span>
               </div>
-              <span className="admin-system-metric-label">{metric.label}</span>
-              <strong>{metric.value}</strong>
+
+              <div className="admin-enterprise-metric-body">
+                <span>{metric.label}</span>
+                <strong>{metric.value}</strong>
+                <p>{metric.note}</p>
+              </div>
             </article>
           ))}
         </section>
 
-        <section className="admin-system-grid">
-          <article className="admin-system-panel admin-system-panel-wide">
-            <div className="admin-system-panel-head">
-              <h3>Demand</h3>
-              <label className="admin-panel-select">
-                <select
-                  className="admin-panel-select-input"
-                  value={selectedDemandView}
-                  onChange={(event) => {
-                    const value = event.target.value as DemandView;
-                    setSelectedDemandView(value);
-                    setActionMessage(
-                      `View: ${demandViewOptions.find((option) => option.value === value)?.label}.`,
-                    );
-                  }}
-                >
-                  {demandViewOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDownIcon />
-              </label>
+        <section className="admin-enterprise-main-grid">
+          <article className="admin-enterprise-panel admin-enterprise-chart-panel">
+            <div className="admin-enterprise-panel-head">
+              <div className="admin-enterprise-panel-copy">
+                <h3>Service Demand Trends</h3>
+                <p>Hourly distribution across primary services.</p>
+              </div>
+
+              <div className="admin-enterprise-toggle-group" role="tablist" aria-label="Demand views">
+                {demandViewButtonSet.map((view) => (
+                  <button
+                    key={view}
+                    type="button"
+                    className={`admin-enterprise-toggle ${selectedDemandView === view ? "is-active" : ""}`.trim()}
+                    onClick={() => {
+                      setSelectedDemandView(view);
+                      setActionMessage(
+                        `View: ${demandViewOptions.find((option) => option.value === view)?.label}.`,
+                      );
+                    }}
+                    role="tab"
+                    aria-selected={selectedDemandView === view}
+                  >
+                    {getDemandViewButtonLabel(view)}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="admin-demand-chart" role="img" aria-label="Hourly service demand chart">
@@ -962,172 +1060,64 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
               ))}
             </div>
 
-            <div className="admin-system-chart-summary">
-              <div className="admin-system-summary-chip">
-                <span>Peak</span>
-                <strong>{peakHoursLabel}</strong>
-              </div>
-              <div className="admin-system-summary-chip">
-                <span>Top service</span>
-                <strong>{overview?.topServices[0] ?? "No data"}</strong>
-              </div>
-              <div className="admin-system-summary-chip">
-                <span>Volume</span>
-                <strong>{customerVolume.toLocaleString()}</strong>
-              </div>
+            <div className="admin-enterprise-chart-legend">
+              <span>
+                <i className="is-primary" aria-hidden="true" />
+                Peak demand
+              </span>
+              <span>
+                <i aria-hidden="true" />
+                Baseline traffic
+              </span>
             </div>
           </article>
 
-          <aside className="admin-system-stack">
-            <article className="admin-system-panel">
-              <div className="admin-system-panel-head">
-                <h3>Live board</h3>
-                <span
-                  className={`admin-analytics-pill is-${queueAlertCount > 0 ? "alert" : "positive"}`.trim()}
-                >
-                  {queueAlertCount > 0 ? `${queueAlertCount} waiting` : "Stable"}
-                </span>
+          <div className="admin-enterprise-side-stack">
+            <article className="admin-enterprise-score-card">
+              <div className="admin-enterprise-score-head">
+                <span>Efficiency Score</span>
+                <strong>{efficiencyScore.toFixed(1)}</strong>
               </div>
 
-              <div className="admin-system-queue-list">
-                {queueItems.map((entry) => (
-                  <div key={entry.ticket} className="admin-system-queue-item">
-                    <div>
-                      <strong>{entry.customer}</strong>
-                      <span>{entry.service}</span>
+              <div className="admin-enterprise-score-track" aria-hidden="true">
+                <span style={{ width: `${efficiencyScore}%` }} />
+              </div>
+
+              <p>{efficiencySummary}</p>
+            </article>
+
+            <article className="admin-enterprise-panel admin-enterprise-load-panel">
+              <div className="admin-enterprise-panel-head">
+                <div className="admin-enterprise-panel-copy">
+                  <h3>Service Load</h3>
+                  <p>Current load across active service lanes.</p>
+                </div>
+              </div>
+
+              <div className="admin-enterprise-load-list">
+                {serviceLoadRows.map((row) => (
+                  <div key={row.service} className="admin-enterprise-load-row">
+                    <div className="admin-enterprise-load-main">
+                      <strong>{row.service}</strong>
+                      <span>{row.tickets} active tickets</span>
                     </div>
-                    <span className={`admin-status-badge is-${entry.status}`.trim()}>
-                      {formatStatusLabel(entry.status)}
+                    <span className={`admin-enterprise-load-level is-${row.level.toLowerCase()}`.trim()}>
+                      {row.level}
                     </span>
                   </div>
                 ))}
               </div>
             </article>
-
-            <article className="admin-system-panel">
-              <div className="admin-system-panel-head">
-                <h3>Next arrival</h3>
-                <Link href="/portal/bookings?role=admin" className="admin-inline-link">
-                  Open
-                </Link>
-              </div>
-
-              {nextArrival ? (
-                <div className="admin-system-next-card">
-                  <span className="admin-system-next-time">{nextArrival.time}</span>
-                  <strong>{nextArrival.customer}</strong>
-                  <p>{nextArrival.service}</p>
-                  <span
-                    className={`admin-status-badge is-${nextArrival.status === "checked-in" ? "completed" : nextArrival.status === "delayed" ? "waiting" : "in-progress"}`.trim()}
-                  >
-                    {nextArrival.status === "checked-in"
-                      ? "Checked In"
-                      : nextArrival.status === "delayed"
-                        ? "Delayed"
-                        : "Upcoming"}
-                  </span>
-                </div>
-              ) : (
-                <div className="admin-system-empty">No upcoming arrival.</div>
-              )}
-            </article>
-          </aside>
+          </div>
         </section>
 
-        <section className="admin-system-grid admin-system-grid-lower">
-          <article className="admin-system-panel admin-system-panel-wide">
-            <div className="admin-system-panel-head">
-              <h3>Service mix</h3>
-              <div className="admin-analytics-table-actions">
-                <button
-                  type="button"
-                  className={`admin-table-action ${tableFilter === "top-rated" ? "is-active" : ""}`.trim()}
-                  onClick={() => {
-                    const nextFilter = tableFilter === "all" ? "top-rated" : "all";
-                    setTableFilter(nextFilter);
-                    setActionMessage(
-                      nextFilter === "top-rated" ? "Top-rated services only." : "All services visible.",
-                    );
-                  }}
-                >
-                  {tableFilter === "all" ? "Top rated" : "Show all"}
-                </button>
-                <button
-                  type="button"
-                  className={`admin-table-action ${showStaffColumn ? "is-active" : ""}`.trim()}
-                  onClick={() => {
-                    setShowStaffColumn((current) => !current);
-                    setActionMessage(showStaffColumn ? "Staff hidden." : "Staff visible.");
-                  }}
-                >
-                  {showStaffColumn ? "Hide staff" : "Show staff"}
-                </button>
-              </div>
-            </div>
-
-            {serviceRows.length === 0 ? (
-              <div className="admin-system-empty">No services match the current filter.</div>
-            ) : (
-              <div className="admin-system-service-list">
-                {serviceRows.map((entry) => (
-                  <div key={entry.service} className="admin-system-service-row">
-                    <div className="admin-system-service-main">
-                      <strong>{entry.service}</strong>
-                      <span>
-                        {Math.round(
-                          entry.tickets * (selectedPeriod === "7d" ? 0.82 : selectedPeriod === "90d" ? 1.2 : 1),
-                        )}{" "}
-                        tickets
-                      </span>
-                    </div>
-                    <span>{entry.avgWait}</span>
-                    <span>{entry.avgDuration}</span>
-                    <RatingStars value={entry.satisfaction} />
-                    {showStaffColumn ? (
-                      <div className="admin-service-staff">
-                        {entry.staffAssigned.slice(0, 3).map((name) => (
-                          <span key={name} className="admin-service-avatar" title={name}>
-                            {getInitials(name)}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
-
-          <article className="admin-system-panel">
-            <div className="admin-system-panel-head">
-              <h3>Team</h3>
-              <button
-                type="button"
-                className={`admin-panel-icon-button ${showTopPerformersOnly ? "is-active" : ""}`.trim()}
-                aria-label="Toggle top performers"
-                onClick={() => {
-                  setShowTopPerformersOnly((current) => !current);
-                  setActionMessage(showTopPerformersOnly ? "Full team visible." : "Top performers only.");
-                }}
-              >
-                <MoreIcon />
-              </button>
-            </div>
-
-            <div className="admin-system-team-list">
-              {staffEntries.map((member) => (
-                <div key={member.name} className="admin-system-team-item">
-                  <div className="admin-efficiency-row">
-                    <span>{member.name}</span>
-                    <strong>{member.score}%</strong>
-                  </div>
-                  <div className="admin-efficiency-track" aria-hidden="true">
-                    <span style={{ width: `${member.score}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </article>
+        <section className="admin-enterprise-alert-grid">
+          {enterpriseAlerts.map((item) => (
+            <article key={item.title} className="admin-enterprise-alert-card">
+              <strong>{item.title}</strong>
+              <p>{item.detail}</p>
+            </article>
+          ))}
         </section>
 
         <p className="admin-analytics-feedback" aria-live="polite">
