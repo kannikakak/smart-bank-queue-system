@@ -5,21 +5,24 @@ import com.smartq.api.admin.dto.AdminBranchRequest;
 import com.smartq.api.admin.dto.AdminBranchResponse;
 import com.smartq.api.admin.dto.AdminServiceRequest;
 import com.smartq.api.admin.dto.AdminServiceResponse;
+import com.smartq.api.admin.dto.AdminStaffSummary;
 import com.smartq.api.analytics.dto.AdminOverview;
 import com.smartq.api.appointment.domain.Appointment;
 import com.smartq.api.appointment.repository.AppointmentRepository;
+import com.smartq.api.auth.domain.AppUser;
 import com.smartq.api.auth.domain.UserRole;
 import com.smartq.api.auth.repository.AppUserRepository;
 import com.smartq.api.branch.domain.Branch;
 import com.smartq.api.branch.repository.BranchRepository;
 import com.smartq.api.catalog.domain.ServiceOffering;
 import com.smartq.api.catalog.repository.ServiceOfferingRepository;
+import com.smartq.api.staff.domain.StaffBranchAssignment;
 import com.smartq.api.staff.repository.StaffBranchAssignmentRepository;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -190,17 +193,41 @@ public class AdminManagementService {
     public List<AdminAppointmentSummary> listAppointments() {
         return appointmentRepository.findAllByOrderByStartTimeAsc().stream()
             .sorted(Comparator.comparing(Appointment::getStartTime))
-            .map(appointment -> new AdminAppointmentSummary(
-                appointment.getId(),
-                appointment.getCustomer().getFullName(),
-                appointment.getCustomer().getEmail(),
-                appointment.getBranch().getName(),
-                appointment.getService().getName(),
-                appointment.getStartTime(),
-                appointment.getEndTime(),
-                appointment.getStatus(),
-                appointment.getStaff() != null ? appointment.getStaff().getFullName() : null
-            ))
+            .map(this::toAppointmentSummary)
+            .toList();
+    }
+
+    @Transactional
+    public AdminAppointmentSummary checkInAppointment(Long appointmentId) {
+        Appointment appointment = findAppointment(appointmentId);
+        if (!"WAITING".equalsIgnoreCase(appointment.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only waiting appointments can be checked in");
+        }
+
+        appointment.checkIn(LocalDateTime.now().withSecond(0).withNano(0));
+        return toAppointmentSummary(appointment);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminStaffSummary> listStaff() {
+        List<AppUser> staffUsers = appUserRepository.findAllByRoleAndActiveTrueOrderByFullNameAsc(UserRole.STAFF);
+        List<StaffBranchAssignment> assignments = staffBranchAssignmentRepository.findAllByActiveTrue();
+        List<Appointment> appointments = appointmentRepository.findAllByOrderByStartTimeAsc();
+        LocalDate today = LocalDate.now();
+
+        Map<Long, String> branchByStaffId = assignments.stream()
+            .collect(Collectors.toMap(
+                assignment -> assignment.getStaff().getId(),
+                assignment -> assignment.getBranch().getName(),
+                (current, ignored) -> current
+            ));
+
+        Map<Long, List<Appointment>> appointmentsByStaffId = appointments.stream()
+            .filter(appointment -> appointment.getStaff() != null)
+            .collect(Collectors.groupingBy(appointment -> appointment.getStaff().getId()));
+
+        return staffUsers.stream()
+            .map(staff -> toStaffSummary(staff, branchByStaffId.get(staff.getId()), appointmentsByStaffId.get(staff.getId()), today))
             .toList();
     }
 
@@ -208,6 +235,11 @@ public class AdminManagementService {
         return appointments.stream()
             .filter(appointment -> status.equalsIgnoreCase(appointment.getStatus()))
             .count();
+    }
+
+    private Appointment findAppointment(Long id) {
+        return appointmentRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found"));
     }
 
     private Branch findBranch(Long id) {
@@ -244,5 +276,74 @@ public class AdminManagementService {
             service.isActive(),
             service.getCreatedAt()
         );
+    }
+
+    private AdminAppointmentSummary toAppointmentSummary(Appointment appointment) {
+        return new AdminAppointmentSummary(
+            appointment.getId(),
+            appointment.getCustomer().getFullName(),
+            appointment.getCustomer().getEmail(),
+            appointment.getBranch().getName(),
+            appointment.getService().getName(),
+            appointment.getStartTime(),
+            appointment.getEndTime(),
+            appointment.getStatus(),
+            appointment.getStaff() != null ? appointment.getStaff().getFullName() : null
+        );
+    }
+
+    private AdminStaffSummary toStaffSummary(
+        AppUser staff,
+        String branchName,
+        List<Appointment> staffAppointments,
+        LocalDate today
+    ) {
+        List<Appointment> appointments = staffAppointments == null ? List.of() : staffAppointments;
+
+        int completedToday = (int) appointments.stream()
+            .filter(appointment -> "COMPLETED".equalsIgnoreCase(appointment.getStatus()))
+            .filter(appointment -> appointment.getStartTime().toLocalDate().isEqual(today))
+            .count();
+
+        int activeAppointments = (int) appointments.stream()
+            .filter(appointment -> appointment.getStartTime().toLocalDate().isEqual(today))
+            .filter(appointment -> isActiveStaffStatus(appointment.getStatus()))
+            .count();
+
+        String status = activeAppointments > 0
+            ? "BUSY"
+            : branchName != null
+                ? "ONLINE"
+                : "OFFLINE";
+
+        int efficiencyScore = Math.min(
+            98,
+            Math.max(42, 58 + completedToday * 9 + (branchName != null ? 8 : 0) - activeAppointments * 3)
+        );
+
+        String roleTitle = completedToday >= 5
+            ? "Senior Advisor"
+            : activeAppointments >= 2
+                ? "Service Officer"
+                : "Branch Associate";
+
+        return new AdminStaffSummary(
+            staff.getId(),
+            staff.getFullName(),
+            staff.getEmail(),
+            staff.getPhone(),
+            branchName != null ? branchName : "Unassigned",
+            roleTitle,
+            status,
+            completedToday,
+            activeAppointments,
+            efficiencyScore
+        );
+    }
+
+    private boolean isActiveStaffStatus(String status) {
+        return "WAITING".equalsIgnoreCase(status)
+            || "READY".equalsIgnoreCase(status)
+            || "IN_SERVICE".equalsIgnoreCase(status);
     }
 }

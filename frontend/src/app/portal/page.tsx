@@ -12,7 +12,12 @@ type PortalPageProps = {
 function parseAdminSection(value: string | string[] | undefined) {
   const section = Array.isArray(value) ? value[0] : value;
 
-  if (section === "transactions" || section === "settings" || section === "help") {
+  if (
+    section === "staff" ||
+    section === "services" ||
+    section === "appointments" ||
+    section === "settings"
+  ) {
     return section;
   }
 

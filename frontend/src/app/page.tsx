@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { login, register } from "@/shared/lib/api";
 
 function BankIcon() {
@@ -65,6 +65,8 @@ type AuthMode = "signin" | "register";
 const authStorageKeys = [
   "smartq.accessToken",
   "smartq.role",
+  "smartq.roleLabel",
+  "smartq.permissions",
   "smartq.displayName",
 ] as const;
 
@@ -82,6 +84,7 @@ function mapApiRoleToPortalRole(role: "CUSTOMER" | "STAFF" | "ADMIN") {
 
 export default function HomePage() {
   const router = useRouter();
+  const [isClientReady, setIsClientReady] = useState(false);
   const [mode, setMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -94,6 +97,10 @@ export default function HomePage() {
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
+
+  useEffect(() => {
+    setIsClientReady(true);
+  }, []);
 
   function clearStoredAuth() {
     authStorageKeys.forEach((key) => {
@@ -126,6 +133,8 @@ export default function HomePage() {
       clearStoredAuth();
       storage.setItem("smartq.accessToken", auth.accessToken);
       storage.setItem("smartq.role", resolvedRole);
+      storage.setItem("smartq.roleLabel", auth.roleLabel);
+      storage.setItem("smartq.permissions", JSON.stringify(auth.permissions));
       storage.setItem("smartq.displayName", auth.displayName);
 
       router.push(`/portal?role=${resolvedRole}`);
@@ -163,6 +172,8 @@ export default function HomePage() {
       clearStoredAuth();
       window.localStorage.setItem("smartq.accessToken", auth.accessToken);
       window.localStorage.setItem("smartq.role", resolvedRole);
+      window.localStorage.setItem("smartq.roleLabel", auth.roleLabel);
+      window.localStorage.setItem("smartq.permissions", JSON.stringify(auth.permissions));
       window.localStorage.setItem("smartq.displayName", auth.displayName);
 
       setInfoMessage("Account created successfully. Redirecting to your portal...");
@@ -192,220 +203,266 @@ export default function HomePage() {
         </Link>
 
         <div className="auth-card auth-card-simple auth-card-compact">
-          <div className="auth-tabs" role="tablist" aria-label="Authentication">
-            <button
-              type="button"
-              className={`auth-tab${mode === "signin" ? " is-active" : ""}`}
-              onClick={() => switchMode("signin")}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              className={`auth-tab${mode === "register" ? " is-active" : ""}`}
-              onClick={() => switchMode("register")}
-            >
-              Register
-            </button>
-          </div>
-
-          <div className="login-intro login-intro-compact">
-            <h1>{mode === "signin" ? "Welcome back" : "Create account"}</h1>
-            <p>
-              {mode === "signin"
-                ? "Sign in with your account to continue."
-                : "Fill in your details to create a new account."}
-            </p>
-          </div>
-
-          {mode === "signin" ? (
-            <form className="login-form" onSubmit={handleLoginSubmit}>
-              <label className="field-label" htmlFor="email">
-                Email
-              </label>
-              <div className="field-shell">
-                <span className="field-icon">
-                  <MailIcon />
-                </span>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="username"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="Enter your email"
-                  suppressHydrationWarning
-                  required
-                />
-              </div>
-
-              <label className="field-label" htmlFor="password">
-                Password
-              </label>
-              <div className="field-shell">
-                <span className="field-icon">
-                  <LockIcon />
-                </span>
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Enter your password"
-                  suppressHydrationWarning
-                  required
-                />
+          {isClientReady ? (
+            <>
+              <div className="auth-tabs" role="tablist" aria-label="Authentication">
                 <button
-                  className="icon-button"
                   type="button"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  onClick={() => setShowPassword((current) => !current)}
+                  className={`auth-tab${mode === "signin" ? " is-active" : ""}`}
+                  onClick={() => switchMode("signin")}
                 >
-                  <EyeIcon />
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  className={`auth-tab${mode === "register" ? " is-active" : ""}`}
+                  onClick={() => switchMode("register")}
+                >
+                  Register
                 </button>
               </div>
 
-              <div className="auth-form-meta auth-form-meta-compact">
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={rememberDevice}
-                    onChange={(event) => setRememberDevice(event.target.checked)}
+              <div className="login-intro login-intro-compact">
+                <h1>{mode === "signin" ? "Welcome back" : "Create account"}</h1>
+                <p>
+                  {mode === "signin"
+                    ? "Sign in with your account to continue."
+                    : "Fill in your details to create a new account."}
+                </p>
+              </div>
+
+              {mode === "signin" ? (
+                <form className="login-form" onSubmit={handleLoginSubmit}>
+                  <label className="field-label" htmlFor="email">
+                    Email
+                  </label>
+                  <div className="field-shell">
+                    <span className="field-icon">
+                      <MailIcon />
+                    </span>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="username"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="Enter your email"
+                      suppressHydrationWarning
+                      required
+                    />
+                  </div>
+
+                  <label className="field-label" htmlFor="password">
+                    Password
+                  </label>
+                  <div className="field-shell">
+                    <span className="field-icon">
+                      <LockIcon />
+                    </span>
+                    <input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="Enter your password"
+                      suppressHydrationWarning
+                      required
+                    />
+                    <button
+                      className="icon-button"
+                      type="button"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      onClick={() => setShowPassword((current) => !current)}
+                    >
+                      <EyeIcon />
+                    </button>
+                  </div>
+
+                  <div className="auth-form-meta auth-form-meta-compact">
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={rememberDevice}
+                        onChange={(event) => setRememberDevice(event.target.checked)}
+                        suppressHydrationWarning
+                      />
+                      <span>Remember me</span>
+                    </label>
+                    <a className="text-link" href="mailto:support@smartqbank.com">
+                      Forgot password
+                    </a>
+                  </div>
+
+                  {errorMessage ? (
+                    <p className="auth-error-message" aria-live="polite">
+                      {errorMessage}
+                    </p>
+                  ) : null}
+
+                  {infoMessage ? (
+                    <p className="auth-info-message" aria-live="polite">
+                      {infoMessage}
+                    </p>
+                  ) : null}
+
+                  <button
+                    className="sign-in-button sign-in-button-simple"
+                    type="submit"
+                    disabled={isSubmitting}
                     suppressHydrationWarning
-                  />
-                  <span>Remember me</span>
-                </label>
-                <a className="text-link" href="mailto:support@smartq.local">
-                  Forgot password
-                </a>
-              </div>
+                  >
+                    <span>{isSubmitting ? "Signing In..." : "Sign In"}</span>
+                  </button>
+                </form>
+              ) : (
+                <form className="login-form" onSubmit={handleRegisterSubmit}>
+                  <label className="field-label" htmlFor="registerName">
+                    Full name
+                  </label>
+                  <div className="field-shell">
+                    <span className="field-icon">
+                      <UserIcon />
+                    </span>
+                    <input
+                      id="registerName"
+                      name="registerName"
+                      type="text"
+                      autoComplete="name"
+                      value={registerName}
+                      onChange={(event) => setRegisterName(event.target.value)}
+                      placeholder="Enter your full name"
+                      suppressHydrationWarning
+                      required
+                    />
+                  </div>
 
-              {errorMessage ? (
-                <p className="auth-error-message" aria-live="polite">
-                  {errorMessage}
-                </p>
-              ) : null}
+                  <label className="field-label" htmlFor="registerEmail">
+                    Email
+                  </label>
+                  <div className="field-shell">
+                    <span className="field-icon">
+                      <MailIcon />
+                    </span>
+                    <input
+                      id="registerEmail"
+                      name="registerEmail"
+                      type="email"
+                      autoComplete="email"
+                      value={registerEmail}
+                      onChange={(event) => setRegisterEmail(event.target.value)}
+                      placeholder="Enter your email"
+                      suppressHydrationWarning
+                      required
+                    />
+                  </div>
 
-              {infoMessage ? (
-                <p className="auth-info-message" aria-live="polite">
-                  {infoMessage}
-                </p>
-              ) : null}
+                  <label className="field-label" htmlFor="registerPassword">
+                    Password
+                  </label>
+                  <div className="field-shell">
+                    <span className="field-icon">
+                      <LockIcon />
+                    </span>
+                    <input
+                      id="registerPassword"
+                      name="registerPassword"
+                      type="password"
+                      autoComplete="new-password"
+                      value={registerPassword}
+                      onChange={(event) => setRegisterPassword(event.target.value)}
+                      placeholder="Create a password"
+                      suppressHydrationWarning
+                      required
+                    />
+                  </div>
 
-              <button
-                className="sign-in-button sign-in-button-simple"
-                type="submit"
-                disabled={isSubmitting}
-                suppressHydrationWarning
-              >
-                <span>{isSubmitting ? "Signing In..." : "Sign In"}</span>
-              </button>
-            </form>
+                  <label className="field-label" htmlFor="registerConfirmPassword">
+                    Confirm password
+                  </label>
+                  <div className="field-shell">
+                    <span className="field-icon">
+                      <LockIcon />
+                    </span>
+                    <input
+                      id="registerConfirmPassword"
+                      name="registerConfirmPassword"
+                      type="password"
+                      autoComplete="new-password"
+                      value={registerConfirmPassword}
+                      onChange={(event) => setRegisterConfirmPassword(event.target.value)}
+                      placeholder="Confirm your password"
+                      suppressHydrationWarning
+                      required
+                    />
+                  </div>
+
+                  {errorMessage ? (
+                    <p className="auth-error-message" aria-live="polite">
+                      {errorMessage}
+                    </p>
+                  ) : null}
+
+                  {infoMessage ? (
+                    <p className="auth-info-message" aria-live="polite">
+                      {infoMessage}
+                    </p>
+                  ) : null}
+
+                  <button
+                    className="sign-in-button sign-in-button-simple"
+                    type="submit"
+                    disabled={isSubmitting}
+                  >
+                    <span>{isSubmitting ? "Creating..." : "Create account"}</span>
+                  </button>
+                </form>
+              )}
+            </>
           ) : (
-            <form className="login-form" onSubmit={handleRegisterSubmit}>
-              <label className="field-label" htmlFor="registerName">
-                Full name
-              </label>
-              <div className="field-shell">
-                <span className="field-icon">
-                  <UserIcon />
-                </span>
-                <input
-                  id="registerName"
-                  name="registerName"
-                  type="text"
-                  autoComplete="name"
-                  value={registerName}
-                  onChange={(event) => setRegisterName(event.target.value)}
-                  placeholder="Enter your full name"
-                  suppressHydrationWarning
-                  required
-                />
+            <>
+              <div className="auth-tabs" aria-label="Authentication">
+                <span className="auth-tab is-active">Sign In</span>
+                <span className="auth-tab">Register</span>
               </div>
 
-              <label className="field-label" htmlFor="registerEmail">
-                Email
-              </label>
-              <div className="field-shell">
-                <span className="field-icon">
-                  <MailIcon />
-                </span>
-                <input
-                  id="registerEmail"
-                  name="registerEmail"
-                  type="email"
-                  autoComplete="email"
-                  value={registerEmail}
-                  onChange={(event) => setRegisterEmail(event.target.value)}
-                  placeholder="Enter your email"
-                  suppressHydrationWarning
-                  required
-                />
+              <div className="login-intro login-intro-compact">
+                <h1>Welcome back</h1>
+                <p>Sign in with your account to continue.</p>
               </div>
 
-              <label className="field-label" htmlFor="registerPassword">
-                Password
-              </label>
-              <div className="field-shell">
-                <span className="field-icon">
-                  <LockIcon />
-                </span>
-                <input
-                  id="registerPassword"
-                  name="registerPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  value={registerPassword}
-                  onChange={(event) => setRegisterPassword(event.target.value)}
-                  placeholder="Create a password"
-                  suppressHydrationWarning
-                  required
-                />
+              <div className="login-form" aria-hidden="true">
+                <label className="field-label">Email</label>
+                <div className="field-shell">
+                  <span className="field-icon">
+                    <MailIcon />
+                  </span>
+                  <input type="email" placeholder="Enter your email" disabled />
+                </div>
+
+                <label className="field-label">Password</label>
+                <div className="field-shell">
+                  <span className="field-icon">
+                    <LockIcon />
+                  </span>
+                  <input type="password" placeholder="Enter your password" disabled />
+                </div>
+
+                <div className="auth-form-meta auth-form-meta-compact">
+                  <span className="checkbox-row">
+                    <input type="checkbox" disabled />
+                    <span>Remember me</span>
+                  </span>
+                  <span className="text-link">Forgot password</span>
+                </div>
+
+                <button className="sign-in-button sign-in-button-simple" type="button" disabled>
+                  <span>Loading...</span>
+                </button>
               </div>
-
-              <label className="field-label" htmlFor="registerConfirmPassword">
-                Confirm password
-              </label>
-              <div className="field-shell">
-                <span className="field-icon">
-                  <LockIcon />
-                </span>
-                <input
-                  id="registerConfirmPassword"
-                  name="registerConfirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  value={registerConfirmPassword}
-                  onChange={(event) => setRegisterConfirmPassword(event.target.value)}
-                  placeholder="Confirm your password"
-                  suppressHydrationWarning
-                  required
-                />
-              </div>
-
-              {errorMessage ? (
-                <p className="auth-error-message" aria-live="polite">
-                  {errorMessage}
-                </p>
-              ) : null}
-
-              {infoMessage ? (
-                <p className="auth-info-message" aria-live="polite">
-                  {infoMessage}
-                </p>
-              ) : null}
-
-              <button
-                className="sign-in-button sign-in-button-simple"
-                type="submit"
-                disabled={isSubmitting}
-              >
-                <span>{isSubmitting ? "Creating..." : "Create account"}</span>
-              </button>
-            </form>
+            </>
           )}
         </div>
       </section>

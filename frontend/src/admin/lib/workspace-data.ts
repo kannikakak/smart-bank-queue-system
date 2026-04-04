@@ -15,10 +15,11 @@ export type QueueEntry = {
 };
 
 export type AppointmentEntry = {
+  id: number;
   time: string;
   customer: string;
   service: string;
-  status: "checked-in" | "upcoming" | "delayed";
+  status: "checked-in" | "upcoming" | "in-service" | "completed";
 };
 
 export type AppointmentScheduleEntry = {
@@ -253,22 +254,25 @@ export const liveQueueEntries: QueueEntry[] = [
 
 export const todayAppointments: AppointmentEntry[] = [
   {
+    id: 1,
     time: "11:30 AM",
     customer: "David Miller",
     service: "Mortgage Discussion",
     status: "upcoming",
   },
   {
+    id: 2,
     time: "12:15 PM",
     customer: "Jessica Taylor",
     service: "Safe Deposit Box",
     status: "checked-in",
   },
   {
+    id: 3,
     time: "10:00 AM",
     customer: "Alan Walker",
     service: "Investment Planning",
-    status: "delayed",
+    status: "in-service",
   },
 ];
 

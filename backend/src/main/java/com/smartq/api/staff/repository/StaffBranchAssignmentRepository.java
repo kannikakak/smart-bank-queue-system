@@ -8,5 +8,7 @@ public interface StaffBranchAssignmentRepository extends JpaRepository<StaffBran
 
     long countByBranch_IdAndActiveTrue(Long branchId);
 
+    List<StaffBranchAssignment> findAllByActiveTrue();
+
     List<StaffBranchAssignment> findByStaff_EmailIgnoreCaseAndActiveTrue(String email);
 }

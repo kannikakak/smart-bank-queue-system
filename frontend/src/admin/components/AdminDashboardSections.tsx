@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AdminAppointmentsWorkspace } from "@/admin/components/AdminAppointmentsWorkspace";
+import { AdminServicesWorkspace } from "@/admin/components/AdminServicesWorkspace";
+import { AdminStaffWorkspace } from "@/admin/components/AdminStaffWorkspace";
 import {
   type AdminStat,
   type AppointmentEntry,
@@ -12,6 +14,7 @@ import {
   type StaffEfficiencyEntry,
 } from "@/admin/lib/workspace-data";
 import {
+  checkInAdminAppointment,
   getAdminAppointments,
   getAdminOverview,
   type AdminAppointmentSummary,
@@ -19,7 +22,7 @@ import {
 } from "@/shared/lib/api";
 
 type DashboardSectionsProps = {
-  focus?: "dashboard" | "appointments" | "queue" | "transactions" | "settings" | "help";
+  focus?: "dashboard" | "staff" | "services" | "appointments" | "queue" | "transactions" | "settings" | "help";
 };
 
 type PeriodFilter = "7d" | "30d" | "90d";
@@ -442,15 +445,18 @@ function mapAdminAppointmentsToTodayAppointments(
   appointments: AdminAppointmentSummary[],
 ): AppointmentEntry[] {
   return appointments.slice(0, 3).map((appointment) => ({
+    id: appointment.id,
     time: formatTimeLabel(appointment.scheduledAt),
     customer: appointment.customerName,
     service: appointment.service,
     status:
       appointment.status === "COMPLETED"
+        ? "completed"
+        : appointment.status === "READY"
         ? "checked-in"
-        : appointment.status === "WAITING"
-          ? "upcoming"
-          : "delayed",
+        : appointment.status === "IN_SERVICE"
+          ? "in-service"
+          : "upcoming",
   }));
 }
 
@@ -537,8 +543,11 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [appointments, setAppointments] = useState<AdminAppointmentSummary[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [appointmentActionId, setAppointmentActionId] = useState<number | null>(null);
 
   const isDashboard = focus === "dashboard";
+  const isStaff = focus === "staff";
+  const isServices = focus === "services";
   const isAppointments = focus === "appointments";
   const isTransactions = focus === "transactions";
   const isSettings = focus === "settings";
@@ -589,8 +598,39 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
     };
   }, []);
 
+  async function handleDashboardCheckIn(appointmentId: number) {
+    try {
+      setAppointmentActionId(appointmentId);
+      const updatedAppointment = await checkInAdminAppointment(appointmentId);
+      setAppointments((currentAppointments) =>
+        currentAppointments.map((appointment) =>
+          appointment.id === updatedAppointment.id ? updatedAppointment : appointment,
+        ),
+      );
+      setLoadError(null);
+      setActionMessage(`${updatedAppointment.customerName} checked in successfully.`);
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Unable to check in this appointment.";
+      setLoadError(message);
+      setActionMessage(message);
+    } finally {
+      setAppointmentActionId(null);
+    }
+  }
+
   if (isAppointments) {
     return <AdminAppointmentsWorkspace />;
+  }
+
+  if (isStaff) {
+    return <AdminStaffWorkspace />;
+  }
+
+  if (isServices) {
+    return <AdminServicesWorkspace />;
   }
 
   const servicePerformanceEntries = buildServicePerformanceEntries(appointments);
@@ -1448,29 +1488,56 @@ export function AdminDashboardSections({ focus = "dashboard" }: DashboardSection
           <div className="admin-operations-card-list">
             {todayAppointments.map((appointment) => (
               <article
-                key={`${appointment.time}-${appointment.customer}`}
-                className={`admin-operations-card ${appointment.status === "delayed" ? "is-alert" : ""}`.trim()}
+                key={appointment.id}
+                className={`admin-operations-card ${appointment.status === "in-service" ? "is-alert" : ""}`.trim()}
               >
                 <div className="admin-operations-card-top">
                   <span className="admin-appointment-time">{appointment.time}</span>
-                  <span className={`admin-status-badge is-${appointment.status === "checked-in" ? "completed" : appointment.status === "delayed" ? "waiting" : "in-progress"}`.trim()}>
-                    {appointment.status === "checked-in" ? "Checked In" : appointment.status === "delayed" ? "Delayed" : "Upcoming"}
+                  <span
+                    className={`admin-status-badge is-${
+                      appointment.status === "checked-in" || appointment.status === "completed"
+                        ? "completed"
+                        : appointment.status === "in-service"
+                          ? "in-progress"
+                          : "waiting"
+                    }`.trim()}
+                  >
+                    {appointment.status === "checked-in"
+                      ? "Checked In"
+                      : appointment.status === "in-service"
+                        ? "In Service"
+                        : appointment.status === "completed"
+                          ? "Completed"
+                          : "Upcoming"}
                   </span>
                 </div>
                 <strong>{appointment.customer}</strong>
                 <p>{appointment.service}</p>
 
-                {appointment.status === "delayed" ? (
-                  <span className="admin-appointment-alert">Delayed (No-show?)</span>
-                ) : (
+                {appointment.status === "upcoming" ? (
                   <div className="admin-appointment-actions">
-                    <button type="button" className="admin-ghost-button">
+                    <button
+                      type="button"
+                      className="admin-ghost-button"
+                      onClick={() => setActionMessage(`Customer reminder queued for ${appointment.customer}.`)}
+                    >
                       Notify
                     </button>
-                    <button type="button" className="admin-primary-mini">
-                      Check-In
+                    <button
+                      type="button"
+                      className="admin-primary-mini"
+                      onClick={() => void handleDashboardCheckIn(appointment.id)}
+                      disabled={appointmentActionId === appointment.id}
+                    >
+                      {appointmentActionId === appointment.id ? "Updating..." : "Check-In"}
                     </button>
                   </div>
+                ) : appointment.status === "checked-in" ? (
+                  <span className="admin-appointment-alert">Already checked in and ready.</span>
+                ) : appointment.status === "in-service" ? (
+                  <span className="admin-appointment-alert">Customer is currently in consultation.</span>
+                ) : (
+                  <span className="admin-appointment-alert">Consultation completed.</span>
                 )}
               </article>
             ))}

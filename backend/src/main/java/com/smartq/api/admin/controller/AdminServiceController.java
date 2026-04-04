@@ -6,6 +6,7 @@ import com.smartq.api.admin.service.AdminManagementService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,28 +28,33 @@ public class AdminServiceController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('MANAGE_SERVICES')")
     public List<AdminServiceResponse> listServices() {
         return adminManagementService.listServices();
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('MANAGE_SERVICES')")
     public AdminServiceResponse getService(@PathVariable Long id) {
         return adminManagementService.getService(id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('MANAGE_SERVICES')")
     public AdminServiceResponse createService(@Valid @RequestBody AdminServiceRequest request) {
         return adminManagementService.createService(request);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('MANAGE_SERVICES')")
     public AdminServiceResponse updateService(@PathVariable Long id, @Valid @RequestBody AdminServiceRequest request) {
         return adminManagementService.updateService(id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAuthority('MANAGE_SERVICES')")
     public void deleteService(@PathVariable Long id) {
         adminManagementService.deleteService(id);
     }

@@ -8,16 +8,16 @@ import com.smartq.api.auth.dto.RegisterRequest;
 import com.smartq.api.auth.repository.AppUserRepository;
 import com.smartq.api.auth.service.AppUserDetailsService;
 import com.smartq.api.security.JwtService;
-import java.time.LocalDateTime;
 import jakarta.validation.Valid;
+import java.time.LocalDateTime;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -54,11 +54,7 @@ public class AuthController {
         AppUser user = userDetailsService.findByEmail(request.email())
             .orElseThrow(() -> new IllegalStateException("Authenticated user missing"));
 
-        return new AuthResponse(
-            jwtService.generateToken(user),
-            user.getRole().name(),
-            user.getFullName()
-        );
+        return buildAuthResponse(user);
     }
 
     @PostMapping("/register")
@@ -81,9 +77,15 @@ public class AuthController {
             now
         ));
 
+        return buildAuthResponse(user);
+    }
+
+    private AuthResponse buildAuthResponse(AppUser user) {
         return new AuthResponse(
             jwtService.generateToken(user),
             user.getRole().name(),
+            user.getRole().getDisplayName(),
+            user.getRole().getPermissions().stream().map(Enum::name).toList(),
             user.getFullName()
         );
     }

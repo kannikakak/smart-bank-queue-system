@@ -11,10 +11,14 @@ const apiBaseUrl = normalizeApiBaseUrl(
 const ACCESS_TOKEN_KEY = "smartq.accessToken";
 const ROLE_STORAGE_KEY = "smartq.role";
 const DISPLAY_NAME_STORAGE_KEY = "smartq.displayName";
+const ROLE_LABEL_STORAGE_KEY = "smartq.roleLabel";
+const PERMISSIONS_STORAGE_KEY = "smartq.permissions";
 const AUTH_STORAGE_KEYS = [
   ACCESS_TOKEN_KEY,
   ROLE_STORAGE_KEY,
   DISPLAY_NAME_STORAGE_KEY,
+  ROLE_LABEL_STORAGE_KEY,
+  PERMISSIONS_STORAGE_KEY,
 ] as const;
 
 export type LoginPayload = {
@@ -31,6 +35,8 @@ export type RegisterPayload = {
 export type AuthResponse = {
   accessToken: string;
   role: "CUSTOMER" | "STAFF" | "ADMIN";
+  roleLabel: string;
+  permissions: string[];
   displayName: string;
 };
 
@@ -96,6 +102,47 @@ export type AdminNotificationSummary = {
   type: string;
   status: string;
   createdAt: string;
+};
+
+export type AdminStaffSummary = {
+  id: number;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  branch: string;
+  roleTitle: string;
+  status: "ONLINE" | "BUSY" | "OFFLINE";
+  completedToday: number;
+  activeAppointments: number;
+  efficiencyScore: number;
+};
+
+export type AdminBranchSummary = {
+  id: number;
+  name: string;
+  address: string;
+  phone: string;
+  openTime: string;
+  closeTime: string;
+  latitude: number | null;
+  longitude: number | null;
+  active: boolean;
+  activeCounters: number;
+  createdAt: string;
+};
+
+export type AdminServiceSummary = {
+  id: number;
+  name: string;
+  durationMinutes: number;
+  active: boolean;
+  createdAt: string;
+};
+
+export type AdminServicePayload = {
+  name: string;
+  durationMinutes: number;
+  active: boolean;
 };
 
 export type StaffQueueTicket = {
@@ -230,6 +277,24 @@ export function readStoredRole() {
   return readStoredValue(ROLE_STORAGE_KEY);
 }
 
+export function readStoredRoleLabel() {
+  return readStoredValue(ROLE_LABEL_STORAGE_KEY);
+}
+
+export function readStoredPermissions() {
+  const value = readStoredValue(PERMISSIONS_STORAGE_KEY);
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
   return apiRequest<AuthResponse>("/api/v1/auth/login", {
     method: "POST",
@@ -296,6 +361,51 @@ export async function getAdminOverview(token?: string) {
 
 export async function getAdminAppointments(token?: string) {
   return apiRequest<AdminAppointmentSummary[]>("/api/v1/admin/appointments", {
+    token: requireAccessToken(token),
+  });
+}
+
+export async function checkInAdminAppointment(appointmentId: number, token?: string) {
+  return apiRequest<AdminAppointmentSummary>(`/api/v1/admin/appointments/${appointmentId}/check-in`, {
+    method: "PATCH",
+    token: requireAccessToken(token),
+  });
+}
+
+export async function getAdminStaff(token?: string) {
+  return apiRequest<AdminStaffSummary[]>("/api/v1/admin/staff", {
+    token: requireAccessToken(token),
+  });
+}
+
+export async function getAdminBranches(token?: string) {
+  return apiRequest<AdminBranchSummary[]>("/api/v1/admin/branches", {
+    token: requireAccessToken(token),
+  });
+}
+
+export async function getAdminServices(token?: string) {
+  return apiRequest<AdminServiceSummary[]>("/api/v1/admin/services", {
+    token: requireAccessToken(token),
+  });
+}
+
+export async function createAdminService(payload: AdminServicePayload, token?: string) {
+  return apiRequest<AdminServiceSummary>("/api/v1/admin/services", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    token: requireAccessToken(token),
+  });
+}
+
+export async function updateAdminService(
+  serviceId: number,
+  payload: AdminServicePayload,
+  token?: string,
+) {
+  return apiRequest<AdminServiceSummary>(`/api/v1/admin/services/${serviceId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
     token: requireAccessToken(token),
   });
 }

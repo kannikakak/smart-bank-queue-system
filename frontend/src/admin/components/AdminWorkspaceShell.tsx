@@ -7,18 +7,22 @@ import {
   clearStoredAuth,
   getAdminAppointments,
   getAdminNotifications,
+  getAdminOverview,
   getAdminUnreadNotificationCount,
   getBranches,
   markAdminNotificationRead,
   readStoredDisplayName,
+  readStoredPermissions,
   readStoredRole,
-  type AdminNotificationSummary,
+  readStoredRoleLabel,
   type AdminAppointmentSummary,
+  type AdminNotificationSummary,
+  type AdminOverview,
   type BranchSummary,
 } from "@/shared/lib/api";
 
 type AdminWorkspaceShellProps = {
-  activeItem: "dashboard" | "appointments" | "queue" | "transactions" | "settings" | "help";
+  activeItem: "dashboard" | "staff" | "services" | "appointments" | "settings" | "queue";
   children: ReactNode;
 };
 
@@ -44,33 +48,33 @@ function DashboardIcon() {
   );
 }
 
+function StaffIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M16 11a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm-8 0a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm4-8a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0 10c2.86 0 8 1.43 8 4.29V19H4v-1.71C4 14.43 9.14 13 12 13Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function ServicesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="m6 4 3 3-2 2-3-3 2-2Zm9 9 5-5 2 2-5 5-2-2ZM4 20l6-6 2 2-6 6H4v-2Zm7-12 3-3 6 6-3 3-6-6Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 function CalendarIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path
         d="M7 2h2v2h6V2h2v2h1.5A2.5 2.5 0 0 1 21 6.5v12A2.5 2.5 0 0 1 18.5 21h-13A2.5 2.5 0 0 1 3 18.5v-12A2.5 2.5 0 0 1 5.5 4H7V2Zm12 8h-14v8.5a.5.5 0 0 0 .5.5h13a.5.5 0 0 0 .5-.5V10Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function QueueIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M4 6h16v3H4V6Zm0 5h10v3H4v-3Zm0 5h16v3H4v-3Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function ReceiptIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M6 3h12v18l-2-1.5L14 21l-2-1.5L10 21l-2-1.5L6 21V3Zm3 4v2h6V7H9Zm0 4v2h6v-2H9Z"
         fill="currentColor"
       />
     </svg>
@@ -125,9 +129,23 @@ const navigationItems = [
   {
     id: "dashboard",
     label: "Overview",
-    description: "Performance and branch load",
+    description: "Live branch performance",
     href: "/portal?role=admin",
     icon: <DashboardIcon />,
+  },
+  {
+    id: "staff",
+    label: "Staff",
+    description: "Personnel and workload",
+    href: "/portal?role=admin&section=staff",
+    icon: <StaffIcon />,
+  },
+  {
+    id: "services",
+    label: "Services",
+    description: "Catalog and capacity",
+    href: "/portal?role=admin&section=services",
+    icon: <ServicesIcon />,
   },
   {
     id: "appointments",
@@ -135,20 +153,6 @@ const navigationItems = [
     description: "Bookings and arrivals",
     href: "/portal/branches?role=admin",
     icon: <CalendarIcon />,
-  },
-  {
-    id: "queue",
-    label: "Consultations",
-    description: "Live queue handoff",
-    href: "/portal/bookings?role=admin",
-    icon: <QueueIcon />,
-  },
-  {
-    id: "transactions",
-    label: "Operations",
-    description: "Reviews and exceptions",
-    href: "/portal?role=admin&section=transactions",
-    icon: <ReceiptIcon />,
   },
   {
     id: "settings",
@@ -159,32 +163,22 @@ const navigationItems = [
   },
 ] as const;
 
-const supportItems = [
-  {
-    id: "help",
-    label: "Support Center",
-    description: "Escalations",
-    href: "/portal?role=admin&section=help",
-    icon: <HelpIcon />,
-  },
-] as const;
-
 const workspaceTitles: Record<AdminWorkspaceShellProps["activeItem"], string> = {
   dashboard: "Analytics Overview",
+  staff: "Staff Management",
+  services: "Service Configuration",
   appointments: "Appointments",
-  queue: "Consultation Board",
-  transactions: "Operations Center",
-  settings: "Service Configuration",
-  help: "Support Center",
+  settings: "Branch Settings",
+  queue: "Queue Board",
 };
 
 const workspaceDescriptions: Record<AdminWorkspaceShellProps["activeItem"], string> = {
   dashboard: "Branch performance and live load.",
+  staff: "Personnel and branch assignments.",
+  services: "Service catalog and slot configuration.",
   appointments: "Bookings and calendar flow.",
-  queue: "Live queue and handoff status.",
-  transactions: "Approvals and review items.",
   settings: "Devices, roles, and alerts.",
-  help: "Support and escalations.",
+  queue: "Live queue and handoff status.",
 };
 
 const workspaceActions: Record<
@@ -192,34 +186,34 @@ const workspaceActions: Record<
   { label: string; href: string; note: string }
 > = {
   dashboard: {
-    label: "Open Queue",
-    href: "/portal/bookings?role=admin",
-    note: "Move from KPIs to live handling.",
+    label: "Open Dashboard",
+    href: "/portal?role=admin",
+    note: "Review performance trends.",
+  },
+  staff: {
+    label: "Open Staff",
+    href: "/portal?role=admin&section=staff",
+    note: "Check availability and workload.",
+  },
+  services: {
+    label: "Open Services",
+    href: "/portal?role=admin&section=services",
+    note: "Adjust durations and active services.",
   },
   appointments: {
     label: "Open Schedule",
     href: "/portal/branches?role=admin",
     note: "Review daily bookings.",
   },
-  queue: {
-    label: "Open Board",
-    href: "/portal/bookings?role=admin",
-    note: "Process waiting customers.",
-  },
-  transactions: {
-    label: "Open Reviews",
-    href: "/portal?role=admin&section=transactions",
-    note: "Handle pending review items.",
-  },
   settings: {
     label: "Open Settings",
     href: "/portal?role=admin&section=settings",
     note: "Check devices and alerts.",
   },
-  help: {
-    label: "Open Support",
-    href: "/portal?role=admin&section=help",
-    note: "Handle urgent issues.",
+  queue: {
+    label: "Open Queue",
+    href: "/portal/bookings?role=admin",
+    note: "Process waiting customers.",
   },
 };
 
@@ -250,6 +244,7 @@ function formatBranchOfficeLabel(branch: BranchSummary | null) {
 
 export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShellProps) {
   const router = useRouter();
+  const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [primaryBranch, setPrimaryBranch] = useState<BranchSummary | null>(null);
   const [branches, setBranches] = useState<BranchSummary[]>([]);
   const [appointments, setAppointments] = useState<AdminAppointmentSummary[]>([]);
@@ -258,14 +253,22 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [displayName, setDisplayName] = useState("Admin User");
   const [roleLabel, setRoleLabel] = useState("Admin session");
+  const [permissionCount, setPermissionCount] = useState(0);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     const storedName = readStoredDisplayName();
     const storedRole = readStoredRole();
+    const storedRoleLabel = readStoredRoleLabel();
+    const storedPermissions = readStoredPermissions();
 
     setDisplayName(storedName && storedName.trim().length > 0 ? storedName : "Admin User");
-    setRoleLabel(formatStoredRoleLabel(storedRole));
+    setRoleLabel(
+      storedRoleLabel && storedRoleLabel.trim().length > 0
+        ? storedRoleLabel
+        : formatStoredRoleLabel(storedRole),
+    );
+    setPermissionCount(storedPermissions.length);
   }, []);
 
   useEffect(() => {
@@ -273,22 +276,29 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
 
     async function loadSidebarData() {
       try {
-        const [branchData, appointmentData] = await Promise.all([
+        const [branchData, appointmentData, overviewData] = await Promise.all([
           getBranches(),
           getAdminAppointments().catch(() => []),
+          getAdminOverview().catch(() => null),
         ]);
 
-        if (isMounted) {
-          setBranches(branchData);
-          setPrimaryBranch(branchData[0] ?? null);
-          setAppointments(appointmentData);
+        if (!isMounted) {
+          return;
         }
+
+        setBranches(branchData);
+        setPrimaryBranch(branchData[0] ?? null);
+        setAppointments(appointmentData);
+        setOverview(overviewData);
       } catch {
-        if (isMounted) {
-          setBranches([]);
-          setPrimaryBranch(null);
-          setAppointments([]);
+        if (!isMounted) {
+          return;
         }
+
+        setBranches([]);
+        setPrimaryBranch(null);
+        setAppointments([]);
+        setOverview(null);
       }
     }
 
@@ -339,14 +349,25 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
   const waitingAppointments = appointments.filter(
     (appointment) => appointment.status === "WAITING",
   ).length;
-  const completedAppointments = appointments.filter(
-    (appointment) => appointment.status === "COMPLETED",
-  ).length;
 
-  function getNavigationMeta(itemId: (typeof navigationItems)[number]["id"] | "help") {
+  function getNavigationMeta(itemId: (typeof navigationItems)[number]["id"]) {
     if (itemId === "dashboard") {
       return {
         label: branches.length > 0 ? `${branches.length} branches` : "Live sync",
+        tone: "neutral",
+      } as const;
+    }
+
+    if (itemId === "staff") {
+      return {
+        label: overview?.metrics.activeStaff ? `${overview.metrics.activeStaff} active` : "Syncing",
+        tone: "positive",
+      } as const;
+    }
+
+    if (itemId === "services") {
+      return {
+        label: overview?.metrics.activeServices ? `${overview.metrics.activeServices} live` : "Catalog",
         tone: "neutral",
       } as const;
     }
@@ -358,30 +379,9 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
       } as const;
     }
 
-    if (itemId === "queue") {
-      return {
-        label: waitingAppointments > 0 ? `${waitingAppointments} arriving` : "Clear",
-        tone: waitingAppointments > 0 ? "alert" : "positive",
-      } as const;
-    }
-
-    if (itemId === "transactions") {
-      return {
-        label: completedAppointments > 0 ? `${completedAppointments} closed` : "Review",
-        tone: "neutral",
-      } as const;
-    }
-
-    if (itemId === "settings") {
-      return {
-        label: primaryBranch ? "Online" : "Syncing",
-        tone: "positive",
-      } as const;
-    }
-
     return {
-      label: waitingAppointments > 2 ? "Priority" : "Standby",
-      tone: waitingAppointments > 2 ? "alert" : "neutral",
+      label: primaryBranch ? "Online" : "Syncing",
+      tone: "positive",
     } as const;
   }
 
@@ -444,43 +444,13 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
                       <strong>{item.label}</strong>
                       <small>{item.description}</small>
                     </span>
-                    <span
-                      className={`admin-nav-badge is-${getNavigationMeta(item.id).tone}`.trim()}
-                    >
+                    <span className={`admin-nav-badge is-${getNavigationMeta(item.id).tone}`.trim()}>
                       {getNavigationMeta(item.id).label}
                     </span>
                   </span>
                 </Link>
               ))}
             </nav>
-          </div>
-
-          <div className="admin-sidebar-group">
-            <p className="admin-sidebar-label">System</p>
-            <div className="admin-sidebar-secondary">
-              {supportItems.map((item) => (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className={`admin-secondary-link ${activeItem === item.id ? "is-active" : ""}`.trim()}
-                >
-                  <span className="admin-nav-icon" aria-hidden="true">
-                    {item.icon}
-                  </span>
-                  <span className="admin-nav-content">
-                    <span className="admin-nav-copy">
-                      <strong>{item.label}</strong>
-                      <small>{item.description}</small>
-                    </span>
-                    <span
-                      className={`admin-nav-badge is-${getNavigationMeta(item.id).tone}`.trim()}
-                    >
-                      {getNavigationMeta(item.id).label}
-                    </span>
-                  </span>
-                </Link>
-              ))}
-            </div>
           </div>
 
           <div className="admin-sidebar-action-card">
@@ -515,7 +485,7 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
             </span>
             <div>
               <strong>{displayName}</strong>
-              <p>{roleLabel}</p>
+              <p>{roleLabel}{permissionCount > 0 ? ` | ${permissionCount} permissions` : ""}</p>
             </div>
           </div>
 
@@ -547,7 +517,7 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
               <SearchIcon />
               <input
                 type="search"
-                placeholder="Search analytics, appointments, or staff..."
+                placeholder="Search analytics, staff, or services..."
                 aria-label="Search admin workspace data"
               />
             </label>
@@ -573,7 +543,11 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
             <div className="admin-topbar-user">
               <div className="admin-topbar-user-copy">
                 <strong>{displayName}</strong>
-                <span>{primaryBranch ? formatBranchOfficeLabel(primaryBranch) : workspaceDescriptions[activeItem]}</span>
+                <span>
+                  {primaryBranch
+                    ? formatBranchOfficeLabel(primaryBranch)
+                    : workspaceDescriptions[activeItem]}
+                </span>
               </div>
 
               <button
@@ -614,10 +588,19 @@ export function AdminWorkspaceShell({ activeItem, children }: AdminWorkspaceShel
                       onClick={() => void handleNotificationClick(notification)}
                     >
                       <div className="admin-notification-item-copy">
-                        <strong>{notification.customerName} booked {notification.service}</strong>
+                        <strong>
+                          {notification.customerName} booked {notification.service}
+                        </strong>
                         <p>{notification.branch}</p>
                       </div>
-                      <span>{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(notification.createdAt))}</span>
+                      <span>
+                        {new Intl.DateTimeFormat("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        }).format(new Date(notification.createdAt))}
+                      </span>
                     </Link>
                   ))
                 )}

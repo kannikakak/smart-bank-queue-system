@@ -72,7 +72,7 @@ public class DatabaseSeeder implements CommandLineRunner {
 
         AppUser customer = new AppUser(
             "Customer One",
-            "customer@smartq.local",
+            "customer@smartqbank.com",
             "+85510123456",
             passwordEncoder.encode("Customer@123"),
             UserRole.CUSTOMER,
@@ -82,7 +82,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         );
         AppUser staffOfficer = new AppUser(
             "Staff Officer",
-            "staff@smartq.local",
+            "staff@smartqbank.com",
             "+85510999001",
             passwordEncoder.encode("Staff@123"),
             UserRole.STAFF,
@@ -92,7 +92,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         );
         AppUser teller = new AppUser(
             "Teller Officer",
-            "teller@smartq.local",
+            "teller@smartqbank.com",
             "+85510999002",
             passwordEncoder.encode("Staff@123"),
             UserRole.STAFF,
@@ -102,7 +102,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         );
         AppUser advisor = new AppUser(
             "Loan Advisor",
-            "advisor@smartq.local",
+            "advisor@smartqbank.com",
             "+85510999003",
             passwordEncoder.encode("Staff@123"),
             UserRole.STAFF,
@@ -112,7 +112,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         );
         AppUser admin = new AppUser(
             "Branch Manager",
-            "admin@smartq.local",
+            "admin@smartqbank.com",
             "+85510999004",
             passwordEncoder.encode("Admin@123"),
             UserRole.ADMIN,
